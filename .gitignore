@@ -7,3 +7,4 @@ training/outputs/
 *.gguf
 *.safetensors
 data/snapshots/
+*.egg-info/
