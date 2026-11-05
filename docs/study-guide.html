@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SQL Copilot Study Guide</title>
+<style>
+:root{
+  --bg:#f6f7fb;--surface:#fff;--fg:#161a2b;--muted:#566079;--line:#dfe3ee;
+  --teal:#0f8b8d;--teal-t:#d8f0f0;--violet:#6a4bd8;--violet-t:#e8e2fb;--amber:#b86e00;--amber-t:#fdebc6;
+  --rose:#cf2f4d;--rose-t:#fbdfe5;--blue:#2461c9;--blue-t:#dbe7fb;--green:#1d8a4a;--green-t:#d7efe0;
+  --code-bg:#12172b;--code-fg:#e6e9f7;
+  --display:'Trebuchet MS','Segoe UI',system-ui,sans-serif;--body:'Segoe UI',system-ui,-apple-system,sans-serif;
+  --mono:ui-monospace,'Cascadia Code',Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0e1120;--surface:#171b30;--fg:#eceffb;--muted:#9aa4c4;--line:#2a3050;
+  --teal:#3fc9cb;--teal-t:#12383b;--violet:#a38dff;--violet-t:#2a2253;--amber:#f0b04a;--amber-t:#41300f;
+  --rose:#ff7a93;--rose-t:#4a1b27;--blue:#78a8ff;--blue-t:#1a2b57;--green:#58d58b;--green-t:#133a24;--code-bg:#0a0d1a}}
+:root[data-theme="dark"]{
+  --bg:#0e1120;--surface:#171b30;--fg:#eceffb;--muted:#9aa4c4;--line:#2a3050;
+  --teal:#3fc9cb;--teal-t:#12383b;--violet:#a38dff;--violet-t:#2a2253;--amber:#f0b04a;--amber-t:#41300f;
+  --rose:#ff7a93;--rose-t:#4a1b27;--blue:#78a8ff;--blue-t:#1a2b57;--green:#58d58b;--green-t:#133a24;--code-bg:#0a0d1a}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 var(--body)}
+h1,h2,h3{font-family:var(--display);line-height:1.15;margin:0;text-wrap:balance}
+h1{font-size:clamp(2rem,6vw,3.2rem);font-weight:800;letter-spacing:-.02em}
+h2{font-size:clamp(1.5rem,4vw,2rem);font-weight:800}
+h3{font-size:1.1rem;font-weight:700}
+p{margin:0}
+code{font-family:var(--mono);font-size:.86em;background:var(--line);padding:.1em .35em;border-radius:4px}
+pre{font-family:var(--mono);font-size:.8rem;line-height:1.55;background:var(--code-bg);color:var(--code-fg);padding:14px 16px;border-radius:10px;overflow-x:auto;margin:0}
+pre code{background:none;padding:0;font-size:inherit}
+a{color:var(--blue)}
+.layout{display:grid;grid-template-columns:240px minmax(0,1fr);gap:0;max-width:1180px;margin:0 auto}
+aside{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:24px 14px 24px 18px;border-right:1px solid var(--line)}
+aside .brand{font:800 1.05rem var(--display);margin-bottom:4px}
+aside .sub{font-size:.75rem;color:var(--muted);margin-bottom:14px}
+aside a{display:block;text-decoration:none;color:var(--muted);font-size:.84rem;padding:5px 8px;border-radius:6px;border-left:3px solid transparent}
+aside a:hover,aside a.on{color:var(--fg);background:var(--violet-t);border-left-color:var(--violet)}
+aside .grp{font:600 .66rem var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:14px 0 4px 8px}
+main{padding:0 24px 80px;min-width:0}
+header.hero{padding:44px 0 20px;display:flex;flex-direction:column;gap:14px}
+.kicker{font:.72rem var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.lead{font-size:1.07rem;color:var(--muted);max-width:64ch}
+.hue{display:flex;gap:6px;flex-wrap:wrap}.hue span{height:8px;width:46px;border-radius:4px}
+section{padding:36px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:18px;scroll-margin-top:6px}
+.lvl{align-self:flex-start;font:600 .68rem var(--mono);letter-spacing:.08em;text-transform:uppercase;padding:3px 10px;border-radius:999px}
+.l-b{background:var(--green-t);color:var(--green)}.l-w{background:var(--blue-t);color:var(--blue)}.l-a{background:var(--rose-t);color:var(--rose)}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.card p,.card li{color:var(--muted);font-size:.93rem}
+.card ul{margin:0;padding-left:18px}
+.chip{align-self:flex-start;font:600 .7rem var(--mono);padding:3px 9px;border-radius:999px}
+.c-teal{background:var(--teal-t);color:var(--teal)}.c-violet{background:var(--violet-t);color:var(--violet)}
+.c-amber{background:var(--amber-t);color:var(--amber)}.c-rose{background:var(--rose-t);color:var(--rose)}
+.c-blue{background:var(--blue-t);color:var(--blue)}.c-green{background:var(--green-t);color:var(--green)}
+.callout{border-left:4px solid var(--amber);background:var(--amber-t);padding:12px 16px;border-radius:0 10px 10px 0;font-size:.94rem}
+.callout.tip{border-color:var(--green);background:var(--green-t)}
+.callout.warn{border-color:var(--rose);background:var(--rose-t)}
+.analogy{border-left:4px solid var(--violet);background:var(--violet-t);padding:12px 16px;border-radius:0 10px 10px 0;font-size:.94rem}
+.diagram{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;overflow-x:auto}
+.diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}
+svg text{font-family:var(--body);fill:var(--fg)}svg .m{font-family:var(--mono)}svg .sub{fill:var(--muted)}
+svg .line{stroke:var(--muted);stroke-width:1.6;fill:none}svg .ah{fill:var(--muted)}
+.f-teal{fill:var(--teal-t);stroke:var(--teal);stroke-width:1.6}.f-violet{fill:var(--violet-t);stroke:var(--violet);stroke-width:1.6}
+.f-amber{fill:var(--amber-t);stroke:var(--amber);stroke-width:1.6}.f-rose{fill:var(--rose-t);stroke:var(--rose);stroke-width:1.6}
+.f-blue{fill:var(--blue-t);stroke:var(--blue);stroke-width:1.6}.f-green{fill:var(--green-t);stroke:var(--green);stroke-width:1.6}
+.f-plain{fill:var(--surface);stroke:var(--line);stroke-width:1.6}
+table{border-collapse:collapse;width:100%;font-size:.88rem;min-width:520px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:.72rem var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.tablebox{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow-x:auto}
+.quiz{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px 16px}
+.quiz details{padding:10px 0;border-bottom:1px solid var(--line)}.quiz details:last-child{border:0}
+.quiz summary{cursor:pointer;font-weight:600}.quiz details p{color:var(--muted);margin-top:6px;font-size:.93rem}
+.gl{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.gl div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:.9rem}
+.gl b{font-family:var(--mono);color:var(--violet);font-size:.85rem}
+.gl span{color:var(--muted)}
+.steps{counter-reset:s;list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.steps li{counter-increment:s;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px 10px 48px;position:relative;font-size:.93rem}
+.steps li::before{content:counter(s);position:absolute;left:12px;top:9px;width:24px;height:24px;border-radius:50%;background:var(--violet-t);color:var(--violet);font:700 .78rem var(--mono);display:grid;place-items:center}
+.tools{display:flex;gap:8px;margin-top:6px}
+button.t{font:500 .8rem var(--body);border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:6px 12px;border-radius:999px;cursor:pointer}
+@media (max-width:860px){.layout{grid-template-columns:1fr}aside{position:static;height:auto;border:0;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:4px}aside .grp,aside .sub{display:none}aside .brand{width:100%}aside a{border:1px solid var(--line);border-radius:999px}main{padding:0 16px 60px}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside id="nav">
+  <div class="brand">SQL Copilot</div><div class="sub">Study guide · basics → advanced</div>
+  <div class="grp">Start</div>
+  <a href="#how">How to use this</a><a href="#big">The big picture</a>
+  <div class="grp">Basics</div>
+  <a href="#sql">SQL &amp; Postgres</a><a href="#llm">LLM basics</a><a href="#t2s">Text-to-SQL</a><a href="#docker">Docker</a><a href="#claude">Claude Code setup</a>
+  <div class="grp">Working</div>
+  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#ft">Fine-tuning</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a>
+  <div class="grp">Advanced</div>
+  <a href="#adv">Advanced topics</a><a href="#fail">Failure modes</a>
+  <div class="grp">Review</div>
+  <a href="#roadmap">Roadmap</a><a href="#quiz">Self-quiz</a><a href="#gloss">Glossary</a>
+</aside>
+<main>
+<header class="hero">
+  <div class="kicker">Study guide · schema-grounded Text-to-SQL</div>
+  <h1>Learn it while you build it</h1>
+  <p class="lead">Every concept in this project, from "what is a SELECT" to LoRA adapters and LangGraph loops. Each section has a level badge, a plain explanation, a diagram, and a gotcha. Read the section that matches what you are building today.</p>
+  <div class="hue" aria-hidden="true"><span style="background:var(--teal)"></span><span style="background:var(--violet)"></span><span style="background:var(--amber)"></span><span style="background:var(--rose)"></span><span style="background:var(--blue)"></span><span style="background:var(--green)"></span></div>
+  <div class="tools"><button class="t" id="theme" type="button">Toggle light/dark</button></div>
+</header>
+
+<section id="how">
+  <h2>How to use this guide</h2>
+  <div class="grid">
+    <div class="card"><span class="lvl l-b">Basics</span><p>What it is and why we need it. Read these first, no prior knowledge assumed.</p></div>
+    <div class="card"><span class="lvl l-w">Working</span><p>How it works with real code and files from this repo. Read when you are building that part.</p></div>
+    <div class="card"><span class="lvl l-a">Advanced</span><p>Trade-offs, failure modes, numbers. Read once the basic version runs.</p></div>
+  </div>
+  <p><b>Color code</b> used everywhere: <span class="chip c-teal">teal = retrieve</span> <span class="chip c-violet">violet = generate</span> <span class="chip c-amber">amber = verify</span> <span class="chip c-rose">rose = guard</span> <span class="chip c-blue">blue = infra/UI</span> <span class="chip c-green">green = data/done</span></p>
+  <div class="callout tip"><b>Learning loop.</b> For each new part: read its section, build it with the <code>tutor</code> agent, answer its quiz questions in the self-quiz, tick it on the roadmap. The agent adds new sections here as new concepts come up.</div>
+</section>
+
+<section id="big">
+  <span class="lvl l-b">Basics</span>
+  <h2>The big picture</h2>
+  <p class="lead">A user types a question in English. The system must return correct, safe SQL and its result. A small language model alone would fail, so the work is split into four stages, each doing one job.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 760 170" role="img" aria-label="Pipeline of four stages">
+    <defs><marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="4" y="50" width="100" height="60" rx="30" class="f-plain"/><text x="54" y="76" text-anchor="middle" font-size="12" font-weight="600">Question</text><text x="54" y="94" text-anchor="middle" font-size="10" class="sub">plain English</text>
+    <path d="M104 80H128" class="line" marker-end="url(#a1)"/>
+    <rect x="130" y="30" width="136" height="100" rx="12" class="f-teal"/><text x="198" y="56" text-anchor="middle" font-size="13" font-weight="700" style="fill:var(--teal)">1 RETRIEVE</text><text x="198" y="78" text-anchor="middle" font-size="11">find the few</text><text x="198" y="93" text-anchor="middle" font-size="11">tables + rules</text><text x="198" y="115" text-anchor="middle" font-size="10" class="sub">knowledge</text>
+    <path d="M266 80H290" class="line" marker-end="url(#a1)"/>
+    <rect x="292" y="30" width="136" height="100" rx="12" class="f-violet"/><text x="360" y="56" text-anchor="middle" font-size="13" font-weight="700" style="fill:var(--violet)">2 GENERATE</text><text x="360" y="78" text-anchor="middle" font-size="11">small tuned model</text><text x="360" y="93" text-anchor="middle" font-size="11">writes JSON + SQL</text><text x="360" y="115" text-anchor="middle" font-size="10" class="sub">skill</text>
+    <path d="M428 80H452" class="line" marker-end="url(#a1)"/>
+    <rect x="454" y="30" width="136" height="100" rx="12" class="f-amber"/><text x="522" y="56" text-anchor="middle" font-size="13" font-weight="700" style="fill:var(--amber)">3 VERIFY</text><text x="522" y="78" text-anchor="middle" font-size="11">EXPLAIN dry-run</text><text x="522" y="93" text-anchor="middle" font-size="11">fix + retry</text><text x="522" y="115" text-anchor="middle" font-size="10" class="sub">safety net</text>
+    <path d="M590 80H614" class="line" marker-end="url(#a1)"/>
+    <rect x="616" y="30" width="140" height="100" rx="12" class="f-rose"/><text x="686" y="56" text-anchor="middle" font-size="13" font-weight="700" style="fill:var(--rose)">4 GUARD</text><text x="686" y="78" text-anchor="middle" font-size="11">SELECT only</text><text x="686" y="93" text-anchor="middle" font-size="11">read-only, LIMIT</text><text x="686" y="115" text-anchor="middle" font-size="10" class="sub">protection</text>
+  </svg></div>
+  <div class="analogy"><b>Analogy: a restaurant kitchen.</b> Retrieve is the prep cook fetching only the ingredients needed. Generate is the chef. Verify is tasting before it leaves. Guard is the health inspector who makes sure nothing dangerous reaches the customer.</div>
+  <div class="callout"><b>The key design rule:</b> knowledge (retrieval) is kept separate from behavior (the model). Facts change often, so they are looked up. Skills (format, dialect style, fixing errors) change rarely, so they are trained.</div>
+</section>
+
+<section id="sql">
+  <span class="lvl l-b">Basics</span>
+  <h2>SQL and Postgres in 10 minutes</h2>
+  <p class="lead">A relational database stores data in <b>tables</b> (rows and columns). Tables link through <b>keys</b>. SQL is the language for asking questions.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 640 190" role="img" aria-label="Two tables linked by a foreign key">
+    <defs><marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="10" y="20" width="250" height="140" rx="10" class="f-green"/><text x="24" y="42" font-size="13" font-weight="700" class="m">organizations</text>
+    <text x="24" y="66" font-size="12" class="m">id (PK)</text><text x="24" y="86" font-size="12" class="m">name</text><text x="24" y="106" font-size="12" class="m">created_at</text><text x="24" y="126" font-size="11" class="sub">1 | Acme Co | 2024-01-03</text><text x="24" y="144" font-size="11" class="sub">2 | Globex  | 2024-02-11</text>
+    <rect x="380" y="20" width="250" height="140" rx="10" class="f-blue"/><text x="394" y="42" font-size="13" font-weight="700" class="m">subscriptions</text>
+    <text x="394" y="66" font-size="12" class="m">id (PK)</text><text x="394" y="86" font-size="12" class="m">org_id (FK)</text><text x="394" y="106" font-size="12" class="m">status, mrr_cents</text><text x="394" y="126" font-size="11" class="sub">10 | 1 | active   | 50000</text><text x="394" y="144" font-size="11" class="sub">11 | 2 | canceled | 120000</text>
+    <path d="M380 86H262" class="line" marker-end="url(#a2)"/><text x="321" y="78" text-anchor="middle" font-size="10" class="sub">org_id → id</text>
+  </svg></div>
+  <div class="grid">
+    <div class="card"><span class="chip c-green">Keys</span><h3>PK and FK</h3><p><b>Primary key</b> uniquely names a row. <b>Foreign key</b> points at another table's primary key. FKs are the "roads" our graph walk follows.</p></div>
+    <div class="card"><span class="chip c-green">Query</span><h3>The core clauses</h3><p><code>SELECT</code> columns, <code>FROM</code> table, <code>JOIN</code> to link tables, <code>WHERE</code> to filter rows, <code>GROUP BY</code> + aggregates (<code>SUM</code>, <code>COUNT</code>) to summarize, <code>ORDER BY</code>, <code>LIMIT</code>.</p></div>
+    <div class="card"><span class="chip c-green">Postgres</span><h3>A dialect</h3><p>SQL varies by database. Postgres uses <code>NOW() - INTERVAL '30 days'</code>, <code>::int</code> casts, <code>ILIKE</code>. MySQL spells these differently, which is why we isolate dialects.</p></div>
+  </div>
+  <pre><code>SELECT o.name, SUM(s.mrr_cents) / 100.0 AS lost_usd
+FROM subscriptions s
+JOIN organizations o ON o.id = s.org_id
+WHERE s.status = 'canceled'
+GROUP BY o.name
+ORDER BY lost_usd DESC
+LIMIT 10;</code></pre>
+  <div class="callout"><b>Gotcha: valid is not correct.</b> The query above runs fine even if "canceled" should have included "past_due". The database cannot know your business rules, which is why the data dictionary exists.</div>
+</section>
+
+<section id="llm">
+  <span class="lvl l-b">Basics</span>
+  <h2>How a language model works (just enough)</h2>
+  <div class="grid">
+    <div class="card"><span class="chip c-violet">Tokens</span><h3>Text becomes pieces</h3><p>The model reads and writes <b>tokens</b> (word fragments). Roughly 1 token ≈ 3-4 characters. Everything has a token budget: the <b>context window</b>.</p></div>
+    <div class="card"><span class="chip c-violet">Next token</span><h3>It predicts, not knows</h3><p>It repeatedly picks the likely next token. That is why it can write confident SQL for a column that does not exist.</p></div>
+    <div class="card"><span class="chip c-violet">Parameters</span><h3>Size = 1.5B, 3B, 7B</h3><p>"B" = billions of learned numbers (weights). Bigger is usually smarter but needs more memory. We pick small models so they run on modest hardware.</p></div>
+    <div class="card"><span class="chip c-violet">Prompt</span><h3>Input = instructions + context</h3><p>Our prompt holds the question, retrieved table definitions, rules, and the required JSON format. Same builder in training and production.</p></div>
+  </div>
+  <div class="callout warn"><b>Why we cannot paste the whole schema.</b> 80 tables × many columns = thousands of tokens of noise. Small models drown in it. Also "lost in the middle": models use the start and end of a long prompt better than the middle, so the most relevant tables go first.</div>
+</section>
+
+<section id="t2s">
+  <span class="lvl l-b">Basics</span>
+  <h2>What Text-to-SQL is and why it is hard</h2>
+  <div class="grid">
+    <div class="card"><span class="chip c-rose">Problem 1</span><h3>Schema explosion</h3><p>Too many tables/columns. Fix: retrieval prunes to a handful.</p></div>
+    <div class="card"><span class="chip c-rose">Problem 2</span><h3>Business meaning</h3><p>"Churn", "big account" are company rules, not columns. Fix: data dictionary.</p></div>
+    <div class="card"><span class="chip c-rose">Problem 3</span><h3>Dialect + mistakes</h3><p>Wrong syntax, hallucinated columns. Fix: fine-tune + verify loop.</p></div>
+    <div class="card"><span class="chip c-rose">Problem 4</span><h3>Ambiguity</h3><p>"Top accounts" by what? Fix: ask the user (clarify step) and show assumptions.</p></div>
+  </div>
+  <div class="callout"><b>Realistic expectations.</b> Published top systems scored about 55% on BIRD and about 21% on Spider 2.0 at release (per the research library; verify before citing). Real databases are hard, so measure honestly and compare against a baseline.</div>
+</section>
+
+<section id="docker">
+  <span class="lvl l-b">Basics</span>
+  <h2>Docker: your database in a box</h2>
+  <p class="lead">Docker runs programs in isolated <b>containers</b> built from <b>images</b>. We use it so Postgres works the same on every machine and can be wiped and rebuilt in seconds.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 700 220" role="img" aria-label="Docker host, container, volume">
+    <defs><marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="10" y="10" width="680" height="200" rx="14" class="f-plain"/><text x="26" y="34" font-size="12" font-weight="700" class="sub">Your Windows PC (host)</text>
+    <rect x="30" y="56" width="170" height="130" rx="10" class="f-violet"/><text x="115" y="82" text-anchor="middle" font-size="12.5" font-weight="700">Python code</text><text x="115" y="102" text-anchor="middle" font-size="10.5" class="sub">.venv, FastAPI, tests</text><text x="115" y="130" text-anchor="middle" font-size="10.5" class="m">psycopg → localhost:5432</text>
+    <rect x="300" y="48" width="230" height="146" rx="12" class="f-blue"/><text x="415" y="72" text-anchor="middle" font-size="12.5" font-weight="700">Container: t2sql-postgres</text><text x="415" y="94" text-anchor="middle" font-size="11" class="sub">image postgres:16</text>
+    <rect x="320" y="108" width="190" height="34" rx="8" class="f-plain"/><text x="415" y="130" text-anchor="middle" font-size="11.5" class="m">roles: admin, copilot_ro</text>
+    <rect x="320" y="150" width="190" height="32" rx="8" class="f-plain"/><text x="415" y="171" text-anchor="middle" font-size="11.5" class="m">database: saas</text>
+    <path d="M200 120H298" class="line" marker-end="url(#a3)"/><text x="249" y="112" text-anchor="middle" font-size="10" class="sub">port map</text>
+    <rect x="570" y="86" width="110" height="70" rx="10" class="f-green"/><text x="625" y="116" text-anchor="middle" font-size="12" font-weight="700">Volume</text><text x="625" y="134" text-anchor="middle" font-size="10" class="sub">pgdata (saved)</text>
+    <path d="M530 121H568" class="line" marker-end="url(#a3)"/>
+  </svg></div>
+  <ul class="steps">
+    <li><b>Image</b> = recipe/snapshot (<code>postgres:16</code>). <b>Container</b> = a running copy. Delete the container, the image remains.</li>
+    <li><b>Volume</b> = storage that survives container deletion. Our <code>pgdata</code> volume keeps data. <code>down -v</code> deletes it.</li>
+    <li><b>Port mapping</b> <code>127.0.0.1:5432:5432</code> = reachable only from your own machine, not the network.</li>
+    <li><b>Compose</b> = one YAML file (<code>infra/docker-compose.yml</code>) that describes the services. Later we add vLLM and the API there.</li>
+    <li><b>Init scripts</b> in <code>infra/postgres/init/</code> run once on an empty volume to create the read-only role.</li>
+    <li><b>.env</b> holds passwords; <code>docker compose --env-file .env</code> injects them. It is gitignored.</li>
+  </ul>
+  <pre><code># start (from repo root)
+docker compose -f infra/docker-compose.yml --env-file .env up -d
+docker ps                                   # is it running / healthy?
+docker exec -it t2sql-postgres psql -U admin -d saas
+docker compose -f infra/docker-compose.yml logs postgres
+docker compose -f infra/docker-compose.yml down        # stop, keep data
+docker compose -f infra/docker-compose.yml down -v     # stop, DELETE data</code></pre>
+  <div class="callout"><b>Gotcha:</b> init scripts only run when the volume is empty. If you change <code>01_roles.sh</code> later, run <code>down -v</code> then <code>up -d</code> to re-run it. Also, Docker Desktop must be running before any <code>docker</code> command works.</div>
+</section>
+
+<section id="claude">
+  <span class="lvl l-b">Basics</span>
+  <h2>Your Claude Code setup</h2>
+  <p class="lead">Claude Code reads project files to know how to behave. This repo configures a teaching setup.</p>
+  <div class="tablebox"><table>
+    <thead><tr><th>File</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><code>CLAUDE.md</code></td><td>Project memory: architecture, conventions, commands. Loaded every session.</td></tr>
+      <tr><td><code>.claude/settings.json</code></td><td>Project settings. <code>"agent": "tutor"</code> makes the tutor the default agent for new sessions.</td></tr>
+      <tr><td><code>.claude/agents/tutor.md</code></td><td>The tutor agent: explain → build → recap → quick check question.</td></tr>
+      <tr><td><code>.claude/skills/teach/SKILL.md</code></td><td>The lesson format and how to extend this study guide. Invoke with <code>/teach</code> or just ask "teach me X".</td></tr>
+    </tbody></table></div>
+  <div class="callout"><b>Note:</b> the default agent applies when a session starts. Restart Claude Code in this folder (or run <code>/agents</code> to pick <code>tutor</code>) for the current conversation to pick it up.</div>
+</section>
+
+<section id="rag">
+  <span class="lvl l-w">Working</span>
+  <h2>Retrieval (RAG): look up, then write</h2>
+  <p class="lead">Retrieval-augmented generation = fetch relevant facts first, then let the model write using them. We retrieve <b>schema and rules, never row data</b>.</p>
+  <div class="grid">
+    <div class="card"><span class="chip c-teal">Embeddings</span><h3>Meaning as numbers</h3><p>An embedding model turns text into a vector (e.g. 384 numbers). Similar meanings land near each other, so "client" ≈ "organization". Closeness is measured by <b>cosine similarity</b>.</p></div>
+    <div class="card"><span class="chip c-teal">BM25</span><h3>Exact word matching</h3><p>A classic keyword score that rewards rare matching words like <code>mrr_cents</code>. Embeddings can blur such names; BM25 nails them.</p></div>
+    <div class="card"><span class="chip c-teal">Fusion</span><h3>RRF merges rankings</h3><p><b>Reciprocal rank fusion</b>: score = Σ 1/(k + rank) over each list (k≈60). Items ranked well by both float to the top, no score tuning needed.</p></div>
+    <div class="card"><span class="chip c-teal">Reranker</span><h3>A second, sharper look</h3><p>A slower model re-scores only the top ~20 candidates against the question. Cheap because the list is short.</p></div>
+  </div>
+  <div class="diagram">
+  <svg viewBox="0 0 700 250" role="img" aria-label="Hybrid retrieval: dense and BM25 fused with RRF then reranked">
+    <defs><marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="10" y="95" width="110" height="50" rx="25" class="f-plain"/><text x="65" y="125" text-anchor="middle" font-size="12" font-weight="600">Question</text>
+    <path d="M120 112L168 62" class="line" marker-end="url(#a4)"/><path d="M120 128L168 188" class="line" marker-end="url(#a4)"/>
+    <rect x="170" y="36" width="170" height="52" rx="10" class="f-teal"/><text x="255" y="58" text-anchor="middle" font-size="12" font-weight="600">Dense search</text><text x="255" y="75" text-anchor="middle" font-size="10.5" class="sub">embeddings, by meaning</text>
+    <rect x="170" y="162" width="170" height="52" rx="10" class="f-teal"/><text x="255" y="184" text-anchor="middle" font-size="12" font-weight="600">BM25 search</text><text x="255" y="201" text-anchor="middle" font-size="10.5" class="sub">keywords, exact names</text>
+    <path d="M340 62L388 110" class="line" marker-end="url(#a4)"/><path d="M340 188L388 140" class="line" marker-end="url(#a4)"/>
+    <rect x="390" y="95" width="120" height="50" rx="10" class="f-violet"/><text x="450" y="116" text-anchor="middle" font-size="12" font-weight="600">RRF fusion</text><text x="450" y="132" text-anchor="middle" font-size="10.5" class="sub">merge rankings</text>
+    <path d="M510 120H538" class="line" marker-end="url(#a4)"/>
+    <rect x="540" y="95" width="100" height="50" rx="10" class="f-amber"/><text x="590" y="116" text-anchor="middle" font-size="12" font-weight="600">Rerank</text><text x="590" y="132" text-anchor="middle" font-size="10.5" class="sub">top 20 → top 5</text>
+    <path d="M640 120H668" class="line" marker-end="url(#a4)"/><text x="680" y="124" text-anchor="middle" font-size="11" font-weight="600">→ FK</text>
+  </svg></div>
+  <h3>FK graph walk: never lose a bridge table</h3>
+  <p>Tables are nodes, foreign keys are edges. If search finds <code>orders</code> and <code>payments</code>, compute the shortest path between them and add the tables on it (e.g. <code>order_items</code>). Library: <code>networkx</code>.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 520 120" role="img" aria-label="FK graph walk adds bridge table">
+    <defs><marker id="a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="10" y="30" width="130" height="50" rx="10" class="f-teal"/><text x="75" y="60" text-anchor="middle" font-size="13" class="m">orders</text>
+    <rect x="195" y="30" width="130" height="50" rx="10" class="f-amber" stroke-dasharray="5 4"/><text x="260" y="60" text-anchor="middle" font-size="13" class="m">order_items</text>
+    <rect x="380" y="30" width="130" height="50" rx="10" class="f-teal"/><text x="445" y="60" text-anchor="middle" font-size="13" class="m">payments</text>
+    <path d="M140 55H193" class="line" marker-end="url(#a5)"/><path d="M325 55H378" class="line" marker-end="url(#a5)"/>
+    <text x="260" y="108" text-anchor="middle" font-size="11" class="sub">solid = found by search · dashed = added by graph walk</text>
+  </svg></div>
+  <pre><code>def rrf(rankings, k=60):
+    scores = {}
+    for ranking in rankings:                 # e.g. [dense_list, bm25_list]
+        for rank, doc in enumerate(ranking, start=1):
+            scores[doc] = scores.get(doc, 0) + 1 / (k + rank)
+    return sorted(scores, key=scores.get, reverse=True)</code></pre>
+  <div class="callout"><b>Gotcha:</b> retrieval quality caps everything after it. If the right table is not retrieved, no model can fix it. Measure <b>recall@k</b> (did the needed tables appear in the top k?) separately from SQL accuracy.</div>
+</section>
+
+<section id="dict">
+  <span class="lvl l-w">Working</span>
+  <h2>The semantic data dictionary</h2>
+  <p class="lead">A YAML file that teaches the system your company's vocabulary. Lives in <code>data/dictionaries/</code>. Someone must write it: draft with an LLM, then review by a human.</p>
+  <pre><code>tables:
+  subscriptions:
+    description: One row per customer subscription.
+    synonyms: [plans, contracts]
+columns:
+  subscriptions.mrr_cents:
+    description: Monthly recurring revenue in CENTS. Divide by 100.0 for dollars.
+metrics:
+  churned: "status IN ('canceled','past_due') AND canceled_at &gt;= NOW() - INTERVAL '30 days'"
+  big_account: "mrr_cents &gt;= 100000 OR plan_tier = 'enterprise'"
+enums:
+  subscriptions.status: [active, trialing, past_due, canceled]</code></pre>
+  <div class="grid">
+    <div class="card"><span class="chip c-green">Value linking</span><p>Index safe enum values so "canceled" becomes the exact string <code>'canceled'</code>. Skip free text and personal data columns.</p></div>
+    <div class="card"><span class="chip c-green">Assumptions</span><p>Metric definitions flow into the model's <code>assumptions</code> output so the user can see and correct them.</p></div>
+  </div>
+</section>
+
+<section id="ft">
+  <span class="lvl l-w">Working</span>
+  <h2>Fine-tuning a small model with QLoRA</h2>
+  <p class="lead">A base model (Qwen2.5-Coder) already knows SQL. Fine-tuning teaches <b>our</b> JSON format, strict Postgres style, how to patch from an error, and when to answer <code>MISSING_SCHEMA_KEY</code>.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 700 230" role="img" aria-label="LoRA adapters on a frozen base model, QLoRA 4-bit">
+    <defs><marker id="a6" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="20" y="40" width="300" height="150" rx="12" class="f-plain"/><text x="170" y="64" text-anchor="middle" font-size="13" font-weight="700">Base model (frozen)</text><text x="170" y="84" text-anchor="middle" font-size="11" class="sub">stored in 4-bit (NF4) = QLoRA</text>
+    <rect x="50" y="100" width="240" height="26" rx="6" class="f-blue"/><text x="170" y="118" text-anchor="middle" font-size="11" class="m">layer weights W (not trained)</text>
+    <rect x="50" y="138" width="240" height="26" rx="6" class="f-blue"/><text x="170" y="156" text-anchor="middle" font-size="11" class="m">layer weights W (not trained)</text>
+    <rect x="360" y="64" width="130" height="38" rx="8" class="f-violet"/><text x="425" y="88" text-anchor="middle" font-size="11.5" class="m">A (r×d)</text>
+    <rect x="360" y="116" width="130" height="38" rx="8" class="f-violet"/><text x="425" y="140" text-anchor="middle" font-size="11.5" class="m">B (d×r)</text>
+    <text x="425" y="52" text-anchor="middle" font-size="12" font-weight="700" style="fill:var(--violet)">LoRA adapter (trained)</text>
+    <path d="M490 83H530M490 135H530" class="line"/>
+    <rect x="530" y="86" width="150" height="50" rx="10" class="f-green"/><text x="605" y="108" text-anchor="middle" font-size="12" font-weight="700">Output = Wx + BAx</text><text x="605" y="125" text-anchor="middle" font-size="10" class="sub">tens of MB file</text>
+    <text x="350" y="214" text-anchor="middle" font-size="11" class="sub">rank r = 16: instead of d×d numbers, train only 2×d×r</text>
+  </svg></div>
+  <div class="grid">
+    <div class="card"><span class="chip c-violet">LoRA</span><p>Freeze the base. Train two small matrices per layer whose product is the update. Far fewer trainable numbers, same quality in practice.</p></div>
+    <div class="card"><span class="chip c-violet">QLoRA</span><p>Same, but the frozen base is kept in 4-bit so a 1.5B-3B model trains on a free 15 GB Colab T4. Libraries: <code>trl</code>, <code>peft</code>, <code>bitsandbytes</code>.</p></div>
+    <div class="card"><span class="chip c-violet">SFT</span><p>Supervised fine-tuning: show (prompt → ideal answer) pairs; the loss is computed on the answer tokens.</p></div>
+  </div>
+  <h3>What one training example holds</h3>
+  <pre><code>PROMPT   = question + exactly the context seen at run time
+           (pruned DDL, dictionary rules, FK hints, dialect hints)
+RESPONSE = {"sql": "...", "tables_used": [...], "assumptions": [...]}
+Also include: distractor tables, MISSING_SCHEMA_KEY refusals,
+             and (bad SQL + error message -> fixed SQL) pairs.</code></pre>
+  <div class="callout warn"><b>Data rules that matter most.</b> (1) Execute every golden query on the seeded DB and drop failures. (2) Split train/test by <i>query template</i>, not randomly, or you test on memorized shapes. (3) Use the same prompt builder as production, or you get a silent train/serve mismatch. (4) Expect 1,000+ pairs. (5) T4 has no bf16: train in fp16 and save checkpoints to Drive.</div>
+</section>
+
+<section id="graph">
+  <span class="lvl l-w">Working</span>
+  <h2>LangGraph: a state machine with retries</h2>
+  <p class="lead">LangGraph runs <b>nodes</b> (Python functions) connected by <b>edges</b>, all reading and writing one shared <b>state</b>. Its strength here is the cycle: fail → patch → retry.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 700 250" role="img" aria-label="LangGraph nodes">
+    <defs><marker id="a7" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="10" y="30" width="110" height="46" rx="9" class="f-teal"/><text x="65" y="58" text-anchor="middle" font-size="11" class="m">prune_schema</text>
+    <rect x="160" y="30" width="110" height="46" rx="9" class="f-teal"/><text x="215" y="58" text-anchor="middle" font-size="11" class="m">expand_fk</text>
+    <rect x="310" y="30" width="110" height="46" rx="9" class="f-violet"/><text x="365" y="58" text-anchor="middle" font-size="11" class="m">generate_sql</text>
+    <rect x="460" y="30" width="110" height="46" rx="9" class="f-amber"/><text x="515" y="58" text-anchor="middle" font-size="11" class="m">validate_sql</text>
+    <path d="M120 53H158M270 53H308M420 53H458" class="line" marker-end="url(#a7)"/>
+    <path d="M515 76V110" class="line" marker-end="url(#a7)"/>
+    <path d="M515 110L565 140L515 170L465 140Z" class="f-plain"/><text x="515" y="144" text-anchor="middle" font-size="11">ok?</text>
+    <rect x="620" y="118" width="70" height="44" rx="9" class="f-rose"/><text x="655" y="144" text-anchor="middle" font-size="11" class="m">guard</text>
+    <path d="M565 140H618" class="line" marker-end="url(#a7)"/><text x="591" y="132" text-anchor="middle" font-size="10" class="sub">yes</text>
+    <rect x="300" y="118" width="110" height="44" rx="9" class="f-rose"/><text x="355" y="144" text-anchor="middle" font-size="11" class="m">patch_query</text>
+    <path d="M465 140H412" class="line" marker-end="url(#a7)"/><text x="438" y="132" text-anchor="middle" font-size="10" class="sub">error</text>
+    <path d="M355 118V98H365V78" class="line" marker-end="url(#a7)"/>
+    <text x="355" y="190" text-anchor="middle" font-size="11" class="sub">retry_count &gt; 2 → stop and tell the user</text>
+    <rect x="20" y="110" width="200" height="90" rx="9" class="f-plain"/><text x="30" y="130" font-size="10.5" class="sub m">state = {</text><text x="40" y="146" font-size="10.5" class="m">question, ddl_context,</text><text x="40" y="161" font-size="10.5" class="m">sql, error, retry_count,</text><text x="40" y="176" font-size="10.5" class="m">assumptions }</text><text x="30" y="192" font-size="10.5" class="sub m">}</text>
+  </svg></div>
+  <pre><code>from langgraph.graph import StateGraph, END
+
+g = StateGraph(State)
+g.add_node("generate_sql", generate_sql)
+g.add_node("validate_sql", validate_sql)
+g.add_node("patch_query", patch_query)
+g.add_edge("generate_sql", "validate_sql")
+g.add_conditional_edges("validate_sql", route,   # returns "ok" | "retry" | "stop"
+    {"ok": END, "retry": "patch_query", "stop": END})
+g.add_edge("patch_query", "validate_sql")</code></pre>
+  <div class="callout"><b>Limit of EXPLAIN.</b> It proves the SQL <i>plans</i>, not that the answer is right. A wrong-but-valid query passes. That is why evaluation compares result rows. Never use <code>EXPLAIN ANALYZE</code>: it executes the query.</div>
+</section>
+
+<section id="guard">
+  <span class="lvl l-w">Working</span>
+  <h2>Safety: four layers, assume the model is wrong</h2>
+  <div class="diagram">
+  <svg viewBox="0 0 640 150" role="img" aria-label="Four safety layers">
+    <rect x="10" y="30" width="145" height="90" rx="10" class="f-rose"/><text x="82" y="56" text-anchor="middle" font-size="12" font-weight="700">1 Read-only role</text><text x="82" y="76" text-anchor="middle" font-size="10.5" class="sub">DB refuses writes</text><text x="82" y="92" text-anchor="middle" font-size="10.5" class="sub">even if SQL tries</text>
+    <rect x="170" y="30" width="145" height="90" rx="10" class="f-rose"/><text x="242" y="56" text-anchor="middle" font-size="12" font-weight="700">2 Parse first</text><text x="242" y="76" text-anchor="middle" font-size="10.5" class="sub">sqlglot: one SELECT</text><text x="242" y="92" text-anchor="middle" font-size="10.5" class="sub">block pg_sleep etc.</text>
+    <rect x="330" y="30" width="145" height="90" rx="10" class="f-rose"/><text x="402" y="56" text-anchor="middle" font-size="12" font-weight="700">3 Limits</text><text x="402" y="76" text-anchor="middle" font-size="10.5" class="sub">statement_timeout</text><text x="402" y="92" text-anchor="middle" font-size="10.5" class="sub">forced LIMIT</text>
+    <rect x="490" y="30" width="140" height="90" rx="10" class="f-rose"/><text x="560" y="56" text-anchor="middle" font-size="12" font-weight="700">4 Hide PII</text><text x="560" y="76" text-anchor="middle" font-size="10.5" class="sub">not in dictionary</text><text x="560" y="92" text-anchor="middle" font-size="10.5" class="sub">blocked in parser</text>
+  </svg></div>
+  <p>Layer 1 is already in <code>infra/postgres/init/01_roles.sh</code>: the <code>copilot_ro</code> role has <code>default_transaction_read_only = on</code> and a 10 s timeout. Defense in depth: any single layer can fail and the others still hold.</p>
+  <div class="callout warn"><b>Prompt injection.</b> Text in the question or in data could try to override instructions. This is exactly why safety lives in code and database permissions, not in the prompt.</div>
+</section>
+
+<section id="eval">
+  <span class="lvl l-w">Working</span>
+  <h2>Evaluation: prove it works</h2>
+  <ul class="steps">
+    <li>Build a test set of 100+ questions with golden SQL (<code>data/eval/</code>), split by template.</li>
+    <li>Run generated and golden SQL; compare <b>result rows</b> (ignore column order/aliases), not SQL text. Metric: <b>execution accuracy</b>.</li>
+    <li>Climb the ladder, recording the score at each rung: base model → + RAG → + fine-tune → + retry loop.</li>
+    <li>Measure <b>retrieval recall@k</b> separately. Compare to a big hosted model so you know what the fine-tune truly buys.</li>
+    <li>Log failures from real use; they become new training data.</li>
+  </ul>
+  <div class="diagram">
+  <svg viewBox="0 0 520 190" role="img" aria-label="Evaluation ladder">
+    <rect x="10" y="130" width="110" height="50" rx="8" class="f-plain"/><text x="65" y="152" text-anchor="middle" font-size="11.5" font-weight="600">Base model</text><text x="65" y="168" text-anchor="middle" font-size="10" class="sub">full schema</text>
+    <rect x="140" y="95" width="110" height="85" rx="8" class="f-teal"/><text x="195" y="117" text-anchor="middle" font-size="11.5" font-weight="600">+ RAG</text><text x="195" y="133" text-anchor="middle" font-size="10" class="sub">pruned schema</text>
+    <rect x="270" y="60" width="110" height="120" rx="8" class="f-violet"/><text x="325" y="82" text-anchor="middle" font-size="11.5" font-weight="600">+ Fine-tune</text><text x="325" y="98" text-anchor="middle" font-size="10" class="sub">QLoRA</text>
+    <rect x="400" y="25" width="110" height="155" rx="8" class="f-amber"/><text x="455" y="47" text-anchor="middle" font-size="11.5" font-weight="600">+ Retry loop</text><text x="455" y="63" text-anchor="middle" font-size="10" class="sub">self-correct</text>
+    <text x="260" y="14" text-anchor="middle" font-size="10.5" class="sub">illustrative heights; your measured scores replace them</text>
+  </svg></div>
+</section>
+
+<section id="stack">
+  <span class="lvl l-w">Working</span>
+  <h2>API, model server, and UI</h2>
+  <div class="grid">
+    <div class="card"><span class="chip c-blue">FastAPI</span><h3>The backend</h3><p>Async web API with automatic request validation (Pydantic). Exposes endpoints like <code>POST /ask</code> and streams progress with SSE.</p></div>
+    <div class="card"><span class="chip c-blue">Streamlit</span><h3>The first UI</h3><p>Python chat screen built fast. It reruns the whole script on each click, so keep it thin: only call the API.</p></div>
+    <div class="card"><span class="chip c-violet">vLLM / llama.cpp</span><h3>Model server</h3><p>Runs the model in its own process. vLLM serves a base model plus several LoRA adapters (needs a GPU). llama.cpp + GGUF runs on CPU.</p></div>
+    <div class="card"><span class="chip c-blue">Registry</span><h3>Per-connection bundle</h3><p>A YAML profile per DB → dialect plug-in, retriever, DB pool, adapter name. The API takes a <code>connection_id</code>.</p></div>
+  </div>
+  <pre><code>class Dialect(Protocol):
+    name: str
+    sqlglot_dialect: str
+    blocked_functions: set[str]
+    def validate(self, sql, conn) -> ValidationResult: ...   # EXPLAIN
+    def build_prompt(self, ctx) -> str: ...                  # dialect hints</code></pre>
+  <div class="callout tip"><b>Why the Protocol from day one:</b> adding MySQL later then means writing <code>dialects/mysql/</code> + data + an adapter, with zero changes to the graph, API or UI.</div>
+</section>
+
+<section id="adv">
+  <span class="lvl l-a">Advanced</span>
+  <h2>Advanced topics</h2>
+  <div class="grid">
+    <div class="card"><span class="chip c-violet">Constrained decoding</span><h3>Guarantee valid output</h3><p>Grammar-constrained generation (Outlines, xgrammar, PICARD idea) forbids tokens that break the JSON/SQL grammar <i>during</i> generation, instead of fixing afterwards.</p></div>
+    <div class="card"><span class="chip c-teal">Schema linking</span><h3>Decouple it</h3><p>RESDSQL splits "find tables/columns" from "write the SQL skeleton". Our hybrid retrieval + FK walk is the same separation.</p></div>
+    <div class="card"><span class="chip c-amber">Self-consistency</span><h3>Sample, execute, vote</h3><p>Generate several candidates, run them, pick the result most agree on. Costs more latency; often lifts accuracy.</p></div>
+    <div class="card"><span class="chip c-violet">Synthetic data</span><h3>Scale training data</h3><p>OmniSQL-style pipelines generate large verified sets from synthetic databases. Quality filter = execute and sanity-check rows.</p></div>
+    <div class="card"><span class="chip c-blue">Multi-adapter serving</span><h3>One base, many skills</h3><p>vLLM loads several LoRA adapters on one base model; choose per request via the <code>model</code> field.</p></div>
+    <div class="card"><span class="chip c-green">Observability</span><h3>Trace every step</h3><p>Langfuse traces retrieval, prompts, retries and latency so you can see exactly where a wrong answer came from.</p></div>
+    <div class="card"><span class="chip c-rose">Multi-tenant</span><h3>Per-customer isolation</h3><p>One dictionary + index + read-only credential per customer; never share indexes across tenants.</p></div>
+    <div class="card"><span class="chip c-amber">Clarification</span><h3>Human-in-the-loop</h3><p>LangGraph interrupts + a checkpointer (<code>thread_id</code>) let the graph pause to ask "top by what?" and resume.</p></div>
+  </div>
+  <div class="tablebox"><table>
+    <thead><tr><th>Trade-off</th><th>Option A</th><th>Option B</th></tr></thead>
+    <tbody>
+      <tr><td>Model size</td><td>1.5B: fast, cheap, weaker joins</td><td>3B/7B: stronger, heavier (check licenses)</td></tr>
+      <tr><td>Serving</td><td>vLLM: fast, multi-adapter, needs GPU</td><td>llama.cpp GGUF: runs on CPU, slower</td></tr>
+      <tr><td>Vector store</td><td>numpy/FAISS: simple, enough for 80 tables</td><td>vector DB: only if scale demands</td></tr>
+      <tr><td>Retry depth</td><td>2 retries: bounded latency</td><td>more: diminishing returns</td></tr>
+    </tbody></table></div>
+</section>
+
+<section id="fail">
+  <span class="lvl l-a">Advanced</span>
+  <h2>Failure modes and what to check</h2>
+  <div class="tablebox"><table>
+    <thead><tr><th>Symptom</th><th>Likely cause</th><th>Where to look</th></tr></thead>
+    <tbody>
+      <tr><td>Invents columns</td><td>Right table not retrieved or context too long</td><td>Retrieval recall@k, prompt order</td></tr>
+      <tr><td>Wrong join / missing table</td><td>Bridge table not added</td><td>FK graph walk</td></tr>
+      <tr><td>Valid SQL, wrong numbers</td><td>Business rule not in dictionary</td><td>Dictionary metrics, assumptions output</td></tr>
+      <tr><td>Fine-tune barely helps</td><td>Train/serve prompt mismatch or leaky split</td><td>Shared prompt builder, template split</td></tr>
+      <tr><td>Retry never fixes it</td><td>No fix-it pairs in training</td><td>Training data composition</td></tr>
+      <tr><td>Colab training crashes</td><td>bf16 on T4 or lost session</td><td>Use fp16, checkpoint to Drive, pin versions</td></tr>
+      <tr><td>Init script did not run</td><td>Volume not empty</td><td><code>down -v</code> then <code>up -d</code></td></tr>
+      <tr><td>Slow / hanging query</td><td>No timeout or LIMIT</td><td>statement_timeout, forced LIMIT</td></tr>
+    </tbody></table></div>
+</section>
+
+<section id="roadmap">
+  <h2>Roadmap with what you learn at each step</h2>
+  <ul class="steps">
+    <li><b>Docker + Postgres + seeded SaaS schema</b> — Docker, SQL, keys, roles. (Docker setup done; schema next.)</li>
+    <li><b>Repo scaffold + Dialect interface</b> — packaging, Protocols, YAML profiles.</li>
+    <li><b>Evaluation set</b> — golden SQL, result-row comparison.</li>
+    <li><b>Data dictionary</b> — business vocabulary as data.</li>
+    <li><b>Retrieval</b> — embeddings, BM25, RRF, FK graph, recall@k.</li>
+    <li><b>Baselines</b> — base model alone, then with RAG.</li>
+    <li><b>Training data</b> — synthetic generation, execution filtering, template splits.</li>
+    <li><b>QLoRA fine-tune</b> — LoRA, quantization, Colab habits.</li>
+    <li><b>LangGraph loop + safety</b> — state machines, sqlglot, timeouts.</li>
+    <li><b>API + UI + tracing</b> — FastAPI, SSE, Streamlit, Langfuse.</li>
+  </ul>
+</section>
+
+<section id="quiz">
+  <h2>Self-quiz</h2>
+  <p class="lead">Answer in your head or on paper first, then click to reveal.</p>
+  <div class="quiz">
+    <details><summary>1. Why do we retrieve schema instead of pasting all of it?</summary><p>Small models drown in noise, hallucinate columns, and use long contexts poorly (start/end better than middle). Retrieval keeps only the few relevant tables plus rules.</p></details>
+    <details><summary>2. Why use both embeddings and BM25?</summary><p>Embeddings catch meaning ("client" ≈ "organization"); BM25 catches exact identifiers like <code>mrr_cents</code>. RRF merges the two rankings.</p></details>
+    <details><summary>3. What does RRF compute?</summary><p>For each item, the sum over rankings of 1/(k + rank). Items ranked high in several lists get the highest score.</p></details>
+    <details><summary>4. What is the difference between LoRA and QLoRA?</summary><p>LoRA trains small adapter matrices on a frozen base. QLoRA also stores the frozen base in 4-bit so training fits on a small GPU.</p></details>
+    <details><summary>5. Why does EXPLAIN not prove the answer is right?</summary><p>It only checks the query is valid and plannable. A wrong-but-valid query passes, so evaluation compares result rows to golden results.</p></details>
+    <details><summary>6. Why split train/test by query template?</summary><p>A random split leaks near-identical questions into test, inflating scores. Template split tests real generalization.</p></details>
+    <details><summary>7. Name the four safety layers.</summary><p>Read-only DB role; parse with sqlglot (single SELECT, blocked functions); timeout + forced LIMIT; hide sensitive columns.</p></details>
+    <details><summary>8. Why are init scripts in Docker not re-running?</summary><p>They only run on an empty data volume. Use <code>down -v</code> to wipe it, then <code>up -d</code>.</p></details>
+    <details><summary>9. Why must training and production share one prompt builder?</summary><p>A format mismatch between training and inference silently weakens the fine-tuned model.</p></details>
+    <details><summary>10. How would you add MySQL later?</summary><p>Implement <code>dialects/mysql/</code>, generate data and train a <code>mysql-v1</code> adapter, register it with the model server, add a dictionary and profile. No change to graph/API/UI.</p></details>
+  </div>
+</section>
+
+<section id="gloss">
+  <h2>Glossary</h2>
+  <div class="gl">
+    <div><b>Adapter</b> <span>Small trained add-on file (LoRA) applied on a base model.</span></div>
+    <div><b>BM25</b> <span>Keyword relevance scoring.</span></div>
+    <div><b>Checkpointer</b> <span>LangGraph store that saves state so a run can pause/resume.</span></div>
+    <div><b>Context window</b> <span>Max tokens a model can read at once.</span></div>
+    <div><b>Cosine similarity</b> <span>How closely two vectors point the same way.</span></div>
+    <div><b>Dense retrieval</b> <span>Search by embedding similarity.</span></div>
+    <div><b>Dialect</b> <span>A database's flavor of SQL.</span></div>
+    <div><b>Embedding</b> <span>A vector representing the meaning of text.</span></div>
+    <div><b>EXPLAIN</b> <span>Postgres command showing a query plan without running it.</span></div>
+    <div><b>Execution accuracy</b> <span>Share of questions whose result rows match gold.</span></div>
+    <div><b>Fine-tuning</b> <span>Further training a model on task examples.</span></div>
+    <div><b>FK / PK</b> <span>Foreign key / primary key.</span></div>
+    <div><b>GGUF</b> <span>Model file format for llama.cpp.</span></div>
+    <div><b>Hallucination</b> <span>Confident but invented output.</span></div>
+    <div><b>Image / Container</b> <span>Docker recipe / running copy of it.</span></div>
+    <div><b>LangGraph</b> <span>Library for stateful node-and-edge LLM workflows.</span></div>
+    <div><b>LoRA</b> <span>Low-rank adaptation: train small matrices, freeze base.</span></div>
+    <div><b>NF4</b> <span>4-bit number format used by QLoRA.</span></div>
+    <div><b>Prompt injection</b> <span>Input text trying to override instructions.</span></div>
+    <div><b>QLoRA</b> <span>LoRA on a 4-bit quantized base.</span></div>
+    <div><b>RAG</b> <span>Retrieve facts first, then generate.</span></div>
+    <div><b>recall@k</b> <span>Did the needed items appear in the top k results?</span></div>
+    <div><b>Reranker</b> <span>Model re-scoring a short candidate list.</span></div>
+    <div><b>RRF</b> <span>Reciprocal rank fusion of several rankings.</span></div>
+    <div><b>Schema linking</b> <span>Mapping question words to tables/columns.</span></div>
+    <div><b>SFT</b> <span>Supervised fine-tuning on prompt/answer pairs.</span></div>
+    <div><b>sqlglot</b> <span>Python SQL parser used for safety checks.</span></div>
+    <div><b>SSE</b> <span>Server-sent events: server streams updates to the browser.</span></div>
+    <div><b>Token</b> <span>Piece of text a model reads/writes.</span></div>
+    <div><b>Volume</b> <span>Docker storage that outlives containers.</span></div>
+  </div>
+</section>
+</main>
+</div>
+<script>
+(function(){
+  var links=[].slice.call(document.querySelectorAll('#nav a'));
+  var secs=links.map(function(a){return document.querySelector(a.getAttribute('href'));});
+  function onScroll(){
+    var y=window.scrollY+120,cur=0;
+    secs.forEach(function(s,i){if(s&&s.offsetTop<=y)cur=i;});
+    links.forEach(function(a,i){a.classList.toggle('on',i===cur);});
+  }
+  window.addEventListener('scroll',onScroll,{passive:true});onScroll();
+  document.getElementById('theme').addEventListener('click',function(){
+    var r=document.documentElement,dark=r.getAttribute('data-theme')==='dark'||(!r.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);
+    r.setAttribute('data-theme',dark?'light':'dark');
+  });
+})();
+</script>
+</body>
+</html>
