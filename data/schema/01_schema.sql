@@ -31,7 +31,10 @@ CREATE TABLE subscriptions (
     mrr_cents    INTEGER NOT NULL CHECK (mrr_cents >= 0),   -- monthly recurring revenue, CENTS
     started_at   TIMESTAMPTZ NOT NULL,
     canceled_at  TIMESTAMPTZ,
-    CHECK ((status = 'canceled') = (canceled_at IS NOT NULL))
+    CHECK ((status = 'canceled') = (canceled_at IS NOT NULL)),
+    -- a free plan has no price and can never be past due; paid plans always have a price
+    CHECK (plan_tier <> 'free' OR (mrr_cents = 0 AND status <> 'past_due')),
+    CHECK (plan_tier = 'free' OR mrr_cents > 0)
 );
 
 CREATE TABLE invoices (
@@ -41,7 +44,8 @@ CREATE TABLE invoices (
     status           TEXT NOT NULL CHECK (status IN ('open','paid','void')),
     issued_at        TIMESTAMPTZ NOT NULL,
     due_at           TIMESTAMPTZ NOT NULL,
-    paid_at          TIMESTAMPTZ
+    paid_at          TIMESTAMPTZ,
+    CHECK ((status = 'paid') = (paid_at IS NOT NULL))
 );
 
 CREATE TABLE products (
