@@ -6,3 +6,4 @@ data/indexes/
 training/outputs/
 *.gguf
 *.safetensors
+data/snapshots/

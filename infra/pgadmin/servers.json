@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "SQL Copilot (local Postgres)",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "saas",
+      "Username": "admin",
+      "SSLMode": "prefer"
+    }
+  }
+}

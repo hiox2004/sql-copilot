@@ -22,5 +22,29 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+
+  # Optional database browser. Not started by default:
+  #   docker compose -f infra/docker-compose.yml --env-file .env --profile tools up -d pgadmin
+  # then open http://localhost:5050 (desktop mode: no login screen).
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: t2sql-pgadmin
+    profiles: ["tools"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-change_me_pgadmin}
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "127.0.0.1:5050:80"
+    volumes:
+      - pgadmindata:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+
 volumes:
   pgdata:
+  pgadmindata:
