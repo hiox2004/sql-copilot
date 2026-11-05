@@ -94,13 +94,13 @@ button.t{font:500 .8rem var(--body);border:1px solid var(--line);background:var(
   <div class="grp">Start</div>
   <a href="#how">How to use this</a><a href="#big">The big picture</a>
   <div class="grp">Basics</div>
-  <a href="#sql">SQL &amp; Postgres</a><a href="#llm">LLM basics</a><a href="#t2s">Text-to-SQL</a><a href="#docker">Docker</a><a href="#claude">Claude Code setup</a>
+  <a href="#sql">SQL &amp; Postgres</a><a href="#llm">LLM basics</a><a href="#t2s">Text-to-SQL</a><a href="#docker">Docker</a><a href="#schema">Schema design</a><a href="#claude">Claude Code setup</a><a href="#hw">Your hardware</a>
   <div class="grp">Working</div>
-  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#ft">Fine-tuning</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a>
+  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#ft">Fine-tuning</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
   <div class="grp">Advanced</div>
-  <a href="#adv">Advanced topics</a><a href="#fail">Failure modes</a>
+  <a href="#adv">Advanced topics</a><a href="#rl">SFT, GRPO, voting</a><a href="#fail">Failure modes</a>
   <div class="grp">Review</div>
-  <a href="#roadmap">Roadmap</a><a href="#quiz">Self-quiz</a><a href="#gloss">Glossary</a>
+  <a href="#roadmap">Roadmap</a><a href="#done">Success criteria</a><a href="#quiz">Self-quiz</a><a href="#gloss">Glossary</a>
 </aside>
 <main>
 <header class="hero">
@@ -215,7 +215,7 @@ LIMIT 10;</code></pre>
     <li><b>Image</b> = recipe/snapshot (<code>postgres:16</code>). <b>Container</b> = a running copy. Delete the container, the image remains.</li>
     <li><b>Volume</b> = storage that survives container deletion. Our <code>pgdata</code> volume keeps data. <code>down -v</code> deletes it.</li>
     <li><b>Port mapping</b> <code>127.0.0.1:5432:5432</code> = reachable only from your own machine, not the network.</li>
-    <li><b>Compose</b> = one YAML file (<code>infra/docker-compose.yml</code>) that describes the services. Later we add vLLM and the API there.</li>
+    <li><b>Compose</b> = one YAML file (<code>infra/docker-compose.yml</code>) that describes the services. Later we may add the API there (the model server runs natively on Windows, not in Docker).</li>
     <li><b>Init scripts</b> in <code>infra/postgres/init/</code> run once on an empty volume to create the read-only role.</li>
     <li><b>.env</b> holds passwords; <code>docker compose --env-file .env</code> injects them. It is gitignored.</li>
   </ul>
@@ -227,6 +227,49 @@ docker compose -f infra/docker-compose.yml logs postgres
 docker compose -f infra/docker-compose.yml down        # stop, keep data
 docker compose -f infra/docker-compose.yml down -v     # stop, DELETE data</code></pre>
   <div class="callout"><b>Gotcha:</b> init scripts only run when the volume is empty. If you change <code>01_roles.sh</code> later, run <code>down -v</code> then <code>up -d</code> to re-run it. Also, Docker Desktop must be running before any <code>docker</code> command works.</div>
+</section>
+
+<section id="schema">
+  <span class="lvl l-b">Basics</span>
+  <h2>Schema design: the 8-table SaaS database</h2>
+  <p class="lead">The copilot is only as good as the database it reads. We built a realistic fake SaaS company in <code>data/schema/</code>: <code>01_schema.sql</code> (tables) and <code>02_seed.sql</code> (fake rows). Docker loads both automatically on first start.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 720 300" role="img" aria-label="Entity relationship diagram of the 8 tables">
+    <defs><marker id="a8" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="270" y="10" width="150" height="46" rx="9" class="f-green"/><text x="345" y="38" text-anchor="middle" font-size="12.5" font-weight="700" class="m">organizations</text>
+    <rect x="30" y="100" width="130" height="46" rx="9" class="f-blue"/><text x="95" y="128" text-anchor="middle" font-size="12" class="m">users</text>
+    <rect x="280" y="100" width="130" height="46" rx="9" class="f-blue"/><text x="345" y="128" text-anchor="middle" font-size="12" class="m">subscriptions</text>
+    <rect x="540" y="100" width="130" height="46" rx="9" class="f-blue"/><text x="605" y="128" text-anchor="middle" font-size="12" class="m">orders</text>
+    <rect x="280" y="200" width="130" height="46" rx="9" class="f-amber"/><text x="345" y="228" text-anchor="middle" font-size="12" class="m">invoices</text>
+    <rect x="540" y="200" width="130" height="46" rx="9" class="f-amber"/><text x="605" y="228" text-anchor="middle" font-size="12" class="m">order_items</text>
+    <rect x="410" y="262" width="130" height="34" rx="9" class="f-rose"/><text x="475" y="284" text-anchor="middle" font-size="12" class="m">payments</text>
+    <rect x="545" y="262" width="130" height="34" rx="9" class="f-green"/><text x="610" y="284" text-anchor="middle" font-size="12" class="m">products</text>
+    <path d="M300 56L125 100" class="line" marker-end="url(#a8)"/><path d="M345 100V58" class="line" marker-end="url(#a8)"/><path d="M570 100L410 40" class="line" marker-end="url(#a8)"/>
+    <path d="M345 200V148" class="line" marker-end="url(#a8)"/><path d="M605 200V148" class="line" marker-end="url(#a8)"/>
+    <path d="M620 246V260" class="line" marker-end="url(#a8)"/>
+    <path d="M440 262L380 248" class="line" marker-end="url(#a8)"/><path d="M510 262L575 244" class="line" marker-end="url(#a8)"/>
+    <text x="14" y="290" font-size="10.5" class="sub">arrow = foreign key pointing at the parent table · payments points at BOTH invoices and order_items' orders (order_id / invoice_id)</text>
+  </svg></div>
+  <div class="grid">
+    <div class="card"><span class="chip c-green">Money in cents</span><h3>Integers, not floats</h3><p>Binary <b>FLOAT</b> cannot store 0.1 exactly (0.1+0.2 ≠ 0.3). Postgres <b>NUMERIC/DECIMAL</b> is exact, but integer cents is a common convention: fast, exact, safe across languages. Cost: the model must remember to divide by 100.0, so the dictionary says so.</p></div>
+    <div class="card"><span class="chip c-green">CHECK constraints</span><h3>Impossible states blocked</h3><p>e.g. <code>canceled_at</code> is set exactly when <code>status = 'canceled'</code>. Constraints keep the fake data honest, which keeps training data clean.</p></div>
+    <div class="card"><span class="chip c-green">Bridge table</span><h3><code>order_items</code></h3><p>Orders and products are many-to-many, so revenue-by-product must join through <code>order_items</code>. Forgetting a bridge table is a classic text-to-SQL error (the FK graph walk fixes it).</p></div>
+    <div class="card"><span class="chip c-green">Two nullable FKs</span><h3><code>payments</code></h3><p>A payment belongs to an order <i>or</i> an invoice. "Total revenue" is therefore ambiguous: it could mean order payments, invoice payments, or both. The dictionary must define it.</p></div>
+    <div class="card"><span class="chip c-green">Seeded randomness</span><h3><code>setseed(0.42)</code></h3><p>Same fake data on every rebuild, so eval answers never drift.</p></div>
+    <div class="card"><span class="chip c-green">COMMENT ON</span><h3>Built-in documentation</h3><p>Table/column comments live in the database itself and are raw material for the data dictionary.</p></div>
+  </div>
+  <div class="callout warn"><b>PII.</b> <code>users.email</code> and <code>users.full_name</code> are personal data. They never go into the dictionary or index, and the parser blocks them.</div>
+  <div class="callout warn"><b>Audit results (v1 seed data has flaws to fix before the eval set):</b>
+    <ul style="margin:6px 0 0;padding-left:18px">
+      <li>2 subscriptions have <code>canceled_at</code> in the <b>future</b>.</li>
+      <li>Free-tier subs are <code>past_due</code> (7) or <code>canceled</code> (4) though they have no billing; unrealistic.</li>
+      <li>30 invoices are issued <b>after</b> their subscription was canceled.</li>
+      <li>Only 3 churn events in the last 30 days: too few to test "churned this month" well.</li>
+      <li>4 organizations have no users.</li>
+      <li>Dates are relative to <code>NOW()</code> at seed time, so "this month" answers <b>drift</b> as real time passes. The eval needs a pinned reference date.</li>
+      <li>Passed checks: order totals equal item sums; no cancel-before-start; every paid/refunded order has a payment.</li>
+    </ul></div>
+  <div class="callout tip"><b>Lesson:</b> auditing data with SQL before building on it is itself a habit worth learning. Every bug above would have silently corrupted golden answers.</div>
 </section>
 
 <section id="claude">
@@ -242,6 +285,34 @@ docker compose -f infra/docker-compose.yml down -v     # stop, DELETE data</code
       <tr><td><code>.claude/skills/teach/SKILL.md</code></td><td>The lesson format and how to extend this study guide. Invoke with <code>/teach</code> or just ask "teach me X".</td></tr>
     </tbody></table></div>
   <div class="callout"><b>Note:</b> the default agent applies when a session starts. Restart Claude Code in this folder (or run <code>/agents</code> to pick <code>tutor</code>) for the current conversation to pick it up.</div>
+</section>
+
+<section id="hw">
+  <span class="lvl l-b">Basics</span>
+  <h2>Your hardware and what it can do</h2>
+  <p class="lead">Checked on this machine: <b>Ryzen 5 5600H (6 cores), 15.4 GB RAM, NVIDIA RTX 3050 Laptop with 4 GB VRAM</b>, 149 GB free disk. VRAM (GPU memory) is the number that decides what runs.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 640 210" role="img" aria-label="VRAM budget: model sizes against 4 GB">
+    <text x="10" y="18" font-size="12" font-weight="700">Approximate memory to RUN a model (4-bit), vs your 4 GB VRAM</text>
+    <rect x="10" y="30" width="600" height="24" rx="6" class="f-plain"/>
+    <rect x="10" y="30" width="150" height="24" rx="6" class="f-green"/><text x="18" y="47" font-size="11">1.5B ≈ 1.2 GB</text>
+    <rect x="10" y="64" width="600" height="24" rx="6" class="f-plain"/>
+    <rect x="10" y="64" width="270" height="24" rx="6" class="f-amber"/><text x="18" y="81" font-size="11">3B ≈ 2.2 GB (+ context cache: tight)</text>
+    <rect x="10" y="98" width="600" height="24" rx="6" class="f-plain"/>
+    <rect x="10" y="98" width="560" height="24" rx="6" class="f-rose"/><text x="18" y="115" font-size="11">7B ≈ 4.7 GB (does not fit; CPU offload = slow)</text>
+    <line x1="400" y1="26" x2="400" y2="128" stroke="var(--rose)" stroke-width="2" stroke-dasharray="5 4"/><text x="404" y="142" font-size="11" style="fill:var(--rose)">4 GB VRAM limit (bar width not to scale beyond this)</text>
+    <text x="10" y="176" font-size="11" class="sub">Figures are rough estimates (weights only plus overhead), not measurements. Training needs several times more memory than running.</text>
+  </svg></div>
+  <div class="tablebox"><table>
+    <thead><tr><th>Task</th><th>Where</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Embeddings, BM25, reranker</td><td>Local CPU</td><td>Small models, fast enough</td></tr>
+      <tr><td>Run the model (inference)</td><td>Local GPU via llama.cpp / GGUF</td><td>1.5B-3B 4-bit fits; vLLM does not run natively on Windows and wants more VRAM</td></tr>
+      <tr><td>QLoRA training</td><td>Colab/Kaggle free GPU</td><td>4 GB is too tight for training with long schema prompts</td></tr>
+      <tr><td>Postgres, API, UI, eval runner</td><td>Local (Docker + venv)</td><td>Light</td></tr>
+    </tbody></table></div>
+  <div class="callout"><b>Decision change:</b> serving moves from "vLLM" to <b>llama.cpp (GGUF)</b> for local use. vLLM stays an option only if we later rent a cloud GPU.</div>
+  <div class="callout warn"><b>Training-data policy.</b> No paid API spend. Data comes from <b>template-generated, execution-verified SQL</b> plus paraphrases written during Claude Code sessions. Check the provider's terms about using model outputs to train other models before publishing a trained model.</div>
 </section>
 
 <section id="rag">
@@ -291,6 +362,24 @@ docker compose -f infra/docker-compose.yml down -v     # stop, DELETE data</code
   <span class="lvl l-w">Working</span>
   <h2>The semantic data dictionary</h2>
   <p class="lead">A YAML file that teaches the system your company's vocabulary. Lives in <code>data/dictionaries/</code>. Someone must write it: draft with an LLM, then review by a human.</p>
+  <div class="analogy"><b>Analogy: a glossary handed to a new analyst.</b> The analyst knows SQL but not that "churned" means canceled or past-due in the last 30 days, or that amounts are in cents. The dictionary is that glossary, and we hand over only the relevant lines for each question.</div>
+  <div class="grid">
+    <div class="card"><span class="chip c-teal">Job 1</span><h3>Find the tables</h3><p>Synonyms and descriptions help search match "client" to <code>organizations</code>.</p></div>
+    <div class="card"><span class="chip c-teal">Job 2</span><h3>Translate vocabulary to SQL</h3><p>Metrics like <code>churned</code> and <code>big_account</code> are stored as exact SQL fragments.</p></div>
+    <div class="card"><span class="chip c-teal">Job 3</span><h3>Warn about gotchas</h3><p>"Amounts are in cents", "revenue = succeeded payments from orders and invoices".</p></div>
+  </div>
+  <div class="diagram">
+  <svg viewBox="0 0 700 150" role="img" aria-label="How dictionary entries flow into the prompt">
+    <defs><marker id="a9" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="10" y="50" width="130" height="50" rx="10" class="f-green"/><text x="75" y="72" text-anchor="middle" font-size="12" font-weight="600">dictionary.yaml</text><text x="75" y="88" text-anchor="middle" font-size="10" class="sub">split into entries</text>
+    <path d="M140 75H168" class="line" marker-end="url(#a9)"/>
+    <rect x="170" y="50" width="130" height="50" rx="10" class="f-teal"/><text x="235" y="72" text-anchor="middle" font-size="12" font-weight="600">Search index</text><text x="235" y="88" text-anchor="middle" font-size="10" class="sub">dense + BM25</text>
+    <path d="M300 75H328" class="line" marker-end="url(#a9)"/>
+    <rect x="330" y="50" width="150" height="50" rx="10" class="f-teal"/><text x="405" y="72" text-anchor="middle" font-size="12" font-weight="600">Top matching entries</text><text x="405" y="88" text-anchor="middle" font-size="10" class="sub">for this question</text>
+    <path d="M480 75H508" class="line" marker-end="url(#a9)"/>
+    <rect x="510" y="50" width="180" height="50" rx="10" class="f-violet"/><text x="600" y="72" text-anchor="middle" font-size="12" font-weight="600">Prompt for the model</text><text x="600" y="88" text-anchor="middle" font-size="10" class="sub">DDL + rules + question</text>
+    <text x="350" y="130" text-anchor="middle" font-size="11" class="sub">only the few relevant entries are injected, never the whole file</text>
+  </svg></div>
   <pre><code>tables:
   subscriptions:
     description: One row per customer subscription.
@@ -415,7 +504,7 @@ g.add_edge("patch_query", "validate_sql")</code></pre>
   <div class="grid">
     <div class="card"><span class="chip c-blue">FastAPI</span><h3>The backend</h3><p>Async web API with automatic request validation (Pydantic). Exposes endpoints like <code>POST /ask</code> and streams progress with SSE.</p></div>
     <div class="card"><span class="chip c-blue">Streamlit</span><h3>The first UI</h3><p>Python chat screen built fast. It reruns the whole script on each click, so keep it thin: only call the API.</p></div>
-    <div class="card"><span class="chip c-violet">vLLM / llama.cpp</span><h3>Model server</h3><p>Runs the model in its own process. vLLM serves a base model plus several LoRA adapters (needs a GPU). llama.cpp + GGUF runs on CPU.</p></div>
+    <div class="card"><span class="chip c-violet">vLLM / llama.cpp</span><h3>Model server</h3><p>Runs the model in its own process. Our choice on this PC: llama.cpp (<code>llama-server</code>, GGUF). vLLM is the big-GPU alternative. See "Model serving".</p></div>
     <div class="card"><span class="chip c-blue">Registry</span><h3>Per-connection bundle</h3><p>A YAML profile per DB → dialect plug-in, retriever, DB pool, adapter name. The API takes a <code>connection_id</code>.</p></div>
   </div>
   <pre><code>class Dialect(Protocol):
@@ -427,6 +516,111 @@ g.add_edge("patch_query", "validate_sql")</code></pre>
   <div class="callout tip"><b>Why the Protocol from day one:</b> adding MySQL later then means writing <code>dialects/mysql/</code> + data + an adapter, with zero changes to the graph, API or UI.</div>
 </section>
 
+<section id="base">
+  <span class="lvl l-w">Working</span>
+  <h2>Choosing the base model: Qwen2.5-Coder vs Qwen3-4B</h2>
+  <p class="lead">The base model is the starting brain we fine-tune. Three things decide the choice on this PC: <b>license</b>, <b>does it fit 4 GB VRAM</b>, and <b>does it train on a free Colab T4</b>.</p>
+  <div class="tablebox"><table>
+    <thead><tr><th></th><th>Qwen2.5-Coder-1.5B</th><th>Qwen2.5-Coder-3B</th><th>Qwen3-4B</th></tr></thead>
+    <tbody>
+      <tr><td>License</td><td>Apache 2.0*</td><td><b>Qwen Research (non-commercial)</b>; "Built with Qwen" notice if outputs improve a distributed model</td><td>Apache 2.0*</td></tr>
+      <tr><td>Parameters</td><td>1.5B</td><td>3B</td><td>about 4.0B (3.6B non-embedding)</td></tr>
+      <tr><td>Q4_K_M file (est.)</td><td>about 1 GB</td><td>about 2 GB</td><td>about 2.5 GB</td></tr>
+      <tr><td>KV cache at 4k context (est.)</td><td>about 0.1 GB</td><td>small</td><td>about 0.6 GB (36 layers x 8 KV heads)</td></tr>
+      <tr><td>Fits 4 GB VRAM?</td><td>Easily</td><td>Yes</td><td>Probably, about 3.4 GB total; tight if Windows uses the GPU for display</td></tr>
+      <tr><td>QLoRA on Colab T4</td><td>Fast</td><td>OK</td><td>OK but several times slower than 1.5B (estimate)</td></tr>
+      <tr><td>Special trait</td><td>Code-specialized</td><td>Code-specialized</td><td>General model with a <b>thinking mode</b></td></tr>
+    </tbody></table></div>
+  <p class="count" style="font-size:.8rem;color:var(--muted)">*License facts come from model cards mirrored on third-party sites; confirm on the official Hugging Face cards. Memory and speed figures are my arithmetic estimates, not measurements.</p>
+  <div class="grid">
+    <div class="card"><span class="chip c-violet">Why Qwen3-4B is tempting</span><p>More capacity helps with joins and schema reasoning, and with a small, template-generated training set (we cannot afford 100k examples) a stronger starting point matters more. Community fine-tunes of Qwen3-4B on Spider/BIRD exist, e.g. SQL-R1 reports 42% on BIRD dev after training from a 23% base, but those are self-reported and not comparable to our schema.</p></div>
+    <div class="card"><span class="chip c-amber">Why it is risky for us</span><p>It nearly fills the GPU, leaving little room for longer prompts. It trains slower on Colab. And it ships with <b>thinking mode on by default</b> (it writes a long <code>&lt;think&gt;</code> block first). For JSON-only output on a laptop we must turn it off (<code>enable_thinking=False</code> in the chat template) and train with exactly that template.</p></div>
+    <div class="card"><span class="chip c-rose">Drop the 3B</span><p>Qwen2.5-Coder-3B has a non-commercial research license and offers no clear advantage over Qwen3-4B. It stays out unless a bake-off surprises us.</p></div>
+    <div class="card"><span class="chip c-green">Newer models</span><p>A Qwen3.5-4B text-to-SQL fine-tune appeared in search results, so newer small models exist. We have not checked its license or specs; treat as a possible third candidate.</p></div>
+  </div>
+  <h3>Wider search (Nov 2026): the real shortlist</h3>
+  <div class="tablebox"><table>
+    <thead><tr><th>Model</th><th>License</th><th>Fit / training on free T4</th><th>SQL evidence</th><th>Verdict</th></tr></thead>
+    <tbody>
+      <tr><td><b>Qwen2.5-Coder-1.5B-Instruct</b></td><td>Apache 2.0 (official repo tag)</td><td>Easy fit; mature QLoRA; fast</td><td>Base of SLM-SQL-1.5B: 67.08% BIRD dev after SFT + RL, with 64 samples per question (their setup, not ours)</td><td><span class="chip c-green">Primary</span></td></tr>
+      <tr><td><b>Qwen3-4B-Instruct-2507</b></td><td>Apache 2.0 per mirrors; verify on the official card</td><td>Tight (~3.4 GB est.); standard transformer so QLoRA tooling is mature; slower</td><td>Only general community fine-tunes found</td><td><span class="chip c-blue">Challenger</span></td></tr>
+      <tr><td>Qwen3.5-4B</td><td>Apache 2.0</td><td>Multimodal weights; hybrid DeltaNet layers with custom kernels (slow on T4); Unsloth advises <b>against</b> 4-bit QLoRA; its 4B LoRA recipe needs ~10 GB and bf16, which T4 lacks</td><td>One BIRD fine-tune, ~54-56% dev (self-reported)</td><td><span class="chip c-amber">Parked</span></td></tr>
+      <tr><td>Phi-4-mini 3.8B / SmolLM3 3B</td><td>MIT / Apache 2.0</td><td>Should fit and train normally</td><td>No SQL measurements found</td><td><span class="chip c-amber">Backup</span></td></tr>
+      <tr><td>Gemma 3 / 4 (4B)</td><td>Gemma custom terms</td><td>Fits</td><td>None for SQL</td><td><span class="chip c-rose">Skip</span> (custom license)</td></tr>
+      <tr><td>SLM-SQL, XiYan-3B, OmniSQL-7B, Arctic-R1-7B</td><td>SLM-SQL is CC-BY-NC; others not confirmed</td><td>7B models do not fit 4 GB</td><td>Strong BIRD scores</td><td><span class="chip c-rose">Do not use weights</span>; borrow the recipes</td></tr>
+    </tbody></table></div>
+  <div class="callout warn"><b>Correction:</b> use <b>Qwen3-4B-Instruct-2507</b>, not plain Qwen3-4B. The 2507 Instruct release is the non-thinking version, so the thinking-mode problem above disappears (verify on the official card).</div>
+  <div class="callout"><b>What moves accuracy more than model choice.</b> The strongest small-model SQL papers (SLM-SQL, FINER-SQL 3B at 67.7% BIRD dev) all use: (1) supervised fine-tuning, then (2) <b>reinforcement learning with an execution reward</b> (GRPO: sample several answers, run them, reward the ones whose results are right), and (3) <b>sample many candidates, execute, vote</b> at inference. Their numbers rely on large training sets and heavy compute, so our gains will be smaller, but this is the advanced roadmap after the basic fine-tune works.</div>
+  <div class="callout tip"><b>Decision.</b> Reading cannot reveal a "perfect" model, because nobody has measured these on our schema, on a 4 GB GPU, with a small template-made dataset. Plan: <b>1)</b> build everything on Qwen2.5-Coder-1.5B-Instruct, <b>2)</b> train Qwen3-4B-Instruct-2507 on the same data as challenger, <b>3)</b> the eval picks the winner. Keep the model name in config. Revisit Qwen3.5-4B when its 4-bit/T4 tooling matures.</div>
+  <div class="callout warn"><b>Do not use the base model's own benchmarks as proof.</b> Vendor claims like "4B rivals a larger model" are untested for our schema. Only our eval counts.</div>
+</section>
+
+<section id="serve">
+  <span class="lvl l-w">Working</span>
+  <h2>Model serving: vLLM vs llama.cpp (and what changes for us)</h2>
+  <p class="lead">A trained model is just files. To answer questions it must be loaded into memory and wrapped in a program that accepts text and returns text. That program is an <b>inference server</b>.</p>
+  <div class="analogy"><b>Analogy: a coffee machine.</b> Training is designing the recipe. The inference server is the machine on the counter that takes an order and makes a cup. <b>vLLM</b> is a big café machine built to serve a queue of customers at once on a powerful GPU. <b>llama.cpp</b> is a compact machine for a home kitchen: one person, modest hardware, still good coffee.</div>
+  <div class="grid">
+    <div class="card"><span class="chip c-blue">vLLM</span><h3>The high-throughput server</h3><p>Python server for GPUs. Its trick, <b>continuous batching</b> plus paged KV-cache, serves many users at once and can hot-swap several LoRA adapters on one base model. Built for Linux and big VRAM. Not native on Windows; needs WSL2/Docker GPU passthrough and more than 4 GB VRAM.</p></div>
+    <div class="card"><span class="chip c-violet">llama.cpp</span><h3>The runs-anywhere server</h3><p>C/C++ engine that runs quantized models on CPU, GPU or both. <code>llama-server</code> exposes an <b>OpenAI-compatible HTTP API</b>. Native Windows binaries exist. Ideal for one user on a 4 GB GPU.</p></div>
+    <div class="card"><span class="chip c-green">GGUF</span><h3>llama.cpp's file format</h3><p>One file holding weights (already quantized, e.g. <code>Q4_K_M</code> = about 4.5 bits/weight) plus tokenizer metadata. A 1.5B model becomes roughly 1 GB.</p></div>
+    <div class="card"><span class="chip c-amber">Ollama</span><h3>Optional wrapper</h3><p>Friendly app built on llama.cpp (pull a model, it serves it). Easier install, less control. Fine for experiments; <code>llama-server</code> is closer to what we learn.</p></div>
+  </div>
+  <h3>The new path from training to answers</h3>
+  <div class="diagram">
+  <svg viewBox="0 0 760 150" role="img" aria-label="Colab train, merge, convert to GGUF, quantize, serve locally">
+    <defs><marker id="b1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="6" y="40" width="124" height="60" rx="10" class="f-violet"/><text x="68" y="64" text-anchor="middle" font-size="11.5" font-weight="700">Colab: QLoRA</text><text x="68" y="82" text-anchor="middle" font-size="10" class="sub">→ LoRA adapter</text>
+    <path d="M130 70H150" class="line" marker-end="url(#b1)"/>
+    <rect x="152" y="40" width="124" height="60" rx="10" class="f-violet"/><text x="214" y="64" text-anchor="middle" font-size="11.5" font-weight="700">Merge</text><text x="214" y="82" text-anchor="middle" font-size="10" class="sub">adapter into base</text>
+    <path d="M276 70H296" class="line" marker-end="url(#b1)"/>
+    <rect x="298" y="40" width="124" height="60" rx="10" class="f-amber"/><text x="360" y="64" text-anchor="middle" font-size="11.5" font-weight="700">Convert → GGUF</text><text x="360" y="82" text-anchor="middle" font-size="10" class="sub">llama.cpp script</text>
+    <path d="M422 70H442" class="line" marker-end="url(#b1)"/>
+    <rect x="444" y="40" width="124" height="60" rx="10" class="f-amber"/><text x="506" y="64" text-anchor="middle" font-size="11.5" font-weight="700">Quantize Q4_K_M</text><text x="506" y="82" text-anchor="middle" font-size="10" class="sub">~1 GB file</text>
+    <path d="M568 70H588" class="line" marker-end="url(#b1)"/>
+    <rect x="590" y="40" width="164" height="60" rx="10" class="f-blue"/><text x="672" y="64" text-anchor="middle" font-size="11.5" font-weight="700">llama-server (local)</text><text x="672" y="82" text-anchor="middle" font-size="10" class="sub">http://localhost:8080/v1</text>
+    <text x="380" y="130" text-anchor="middle" font-size="11" class="sub">Left half runs in the cloud once per model version; right half runs on your PC every day.</text>
+  </svg></div>
+  <pre><code># run the model on your GPU (-ngl 99 = offload all layers, -c = context tokens)
+llama-server -m models/t2sql-q4_k_m.gguf -ngl 99 -c 4096 --port 8080
+
+# our generation client just speaks the OpenAI-style HTTP API
+httpx.post("http://localhost:8080/v1/chat/completions", json={
+    "model": "t2sql", "temperature": 0,
+    "messages": [{"role": "user", "content": prompt}]})</code></pre>
+  <h3>Why the Colab adapter cannot go straight to your PC</h3>
+  <div class="diagram">
+  <svg viewBox="0 0 760 170" role="img" aria-label="Formats: PEFT adapter on 4-bit base versus GGUF">
+    <defs><marker id="b2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="10" y="20" width="330" height="70" rx="10" class="f-violet"/><text x="175" y="44" text-anchor="middle" font-size="12" font-weight="700">What Colab gives you</text><text x="175" y="64" text-anchor="middle" font-size="11">PEFT adapter (safetensors) trained against a</text><text x="175" y="79" text-anchor="middle" font-size="11">bitsandbytes 4-bit NF4 base</text>
+    <rect x="420" y="20" width="330" height="70" rx="10" class="f-blue"/><text x="585" y="44" text-anchor="middle" font-size="12" font-weight="700">What llama.cpp can load</text><text x="585" y="64" text-anchor="middle" font-size="11">GGUF file (K-quants such as Q4_K_M)</text><text x="585" y="79" text-anchor="middle" font-size="11">or a GGUF-format LoRA over a GGUF base</text>
+    <path d="M340 55H418" class="line" marker-end="url(#b2)"/><text x="379" y="46" text-anchor="middle" font-size="10" class="sub">convert</text>
+    <rect x="10" y="108" width="740" height="50" rx="10" class="f-amber"/><text x="380" y="130" text-anchor="middle" font-size="11.5" font-weight="700">Accuracy risks along the way</text><text x="380" y="147" text-anchor="middle" font-size="11">1) merge into a 16-bit base (not the NF4 one)   2) re-quantize to Q4_K_M (second rounding of the same weights)</text>
+  </svg></div>
+  <ul class="steps">
+    <li><b>Different formats.</b> bitsandbytes 4-bit weights and PEFT files are not GGUF. llama.cpp cannot read them; something must convert.</li>
+    <li><b>The adapter alone is not a model.</b> It is only a delta. Either merge it into the base (then convert and quantize), or convert the adapter to a GGUF LoRA and load it over a GGUF base with <code>--lora</code>. Both routes need a conversion.</li>
+    <li><b>Merge into the 16-bit base.</b> QLoRA trained against a 4-bit-rounded copy of the base, but the merge uses the original 16-bit weights, so there is already a small mismatch.</li>
+    <li><b>Quantization is the step most likely to hurt.</b> Q4_K_M rounds the merged weights a second time. The loss is usually small, but only the eval can tell. If it drops, try Q5_K_M or Q8_0 (bigger file, closer to full precision; check it still fits in 4 GB).</li>
+  </ul>
+  <h3>What changes, and what does not</h3>
+  <div class="tablebox"><table>
+    <thead><tr><th>Area</th><th>With vLLM (old plan)</th><th>With llama.cpp (new plan)</th></tr></thead>
+    <tbody>
+      <tr><td>Our code (<code>generation/</code>)</td><td colspan="2">Unchanged: both expose an OpenAI-style HTTP API, so the client only needs a base URL. This is why the model client is isolated in its own module.</td></tr>
+      <tr><td>Training</td><td colspan="2">Unchanged: QLoRA on Colab/Kaggle.</td></tr>
+      <tr><td>After training</td><td>Serve base + adapter directly</td><td><b>New steps:</b> merge adapter, convert to GGUF, quantize</td></tr>
+      <tr><td>Multi-adapter</td><td>Hot-swap per request via <code>model</code> field</td><td>Simplest: one merged GGUF per dialect. Newer builds can load LoRA GGUF adapters (verify in your build)</td></tr>
+      <tr><td>Guaranteed JSON</td><td>Outlines / xgrammar</td><td>Built-in <b>GBNF grammars</b> / JSON-schema constraints, so no extra library</td></tr>
+      <tr><td>Many users at once</td><td>Excellent (continuous batching)</td><td>Fine for one user; limited parallelism</td></tr>
+      <tr><td>Where it runs</td><td>Docker/Linux with big GPU</td><td>Native on your Windows host (GPU access from Docker on Windows is extra setup we skip)</td></tr>
+    </tbody></table></div>
+  <div class="callout warn"><b>Gotcha: evaluate the file you serve.</b> Quantization shrinks the model and can lower accuracy slightly. Always run the eval against the quantized GGUF you will actually use, not the full-precision model on Colab. Also keep the llama.cpp chat template identical to training, or you recreate the train/serve mismatch.</div>
+  <div class="callout tip"><b>Does "one merged GGUF per dialect" make adding databases harder?</b> Only a little. An adapter is a small diff on top of a base model. vLLM keeps one base in memory and swaps diffs per request. With merged GGUFs, each dialect is a full ~1 GB file, and on 4 GB VRAM we load one at a time (switching = restarting the server, seconds). The code is unchanged: the profile's <code>adapter:</code> field just points to a different model name or server URL. The real work of a new database is its data, training and eval, not serving. <b>Checked against community docs (not the official README, so confirm on your build):</b> llama.cpp can load LoRA adapters at start-up without merging. Flags: <code>--lora FILE</code> (repeatable), <code>--lora-scaled FILE:SCALE</code>, and <code>--lora-init-without-apply</code> to load them switched off. Then <code>GET /lora-adapters</code> lists them and <code>POST /lora-adapters</code> sets each adapter's scale by id (0 = off), which is a real hot-swap. Requirements and limits: the adapter must first be converted to a GGUF adapter (llama.cpp's <code>convert_lora_to_gguf.py</code>, or the "GGUF-my-LoRA" tool), and requests with different LoRA settings are not batched together. Not confirmed: exactly what happens to adapters left out of a POST (sources disagree) and the exact request body. <b>Our plan:</b> start with one merged GGUF; try <code>--lora</code> later if we add a second dialect.
+  <br><b>Separate idea, untested:</b> a single model plus a "dialect: mysql" line in the prompt might be good enough without separate adapters. This is a hypothesis, no source backs it; the eval on a second dialect will decide.</div>
+  <div class="callout">vLLM stays a future option if you ever rent a cloud GPU or serve many users. Because our client only needs a URL, switching back is a config change, not a rewrite.</div>
+</section>
+
 <section id="adv">
   <span class="lvl l-a">Advanced</span>
   <h2>Advanced topics</h2>
@@ -435,7 +629,7 @@ g.add_edge("patch_query", "validate_sql")</code></pre>
     <div class="card"><span class="chip c-teal">Schema linking</span><h3>Decouple it</h3><p>RESDSQL splits "find tables/columns" from "write the SQL skeleton". Our hybrid retrieval + FK walk is the same separation.</p></div>
     <div class="card"><span class="chip c-amber">Self-consistency</span><h3>Sample, execute, vote</h3><p>Generate several candidates, run them, pick the result most agree on. Costs more latency; often lifts accuracy.</p></div>
     <div class="card"><span class="chip c-violet">Synthetic data</span><h3>Scale training data</h3><p>OmniSQL-style pipelines generate large verified sets from synthetic databases. Quality filter = execute and sanity-check rows.</p></div>
-    <div class="card"><span class="chip c-blue">Multi-adapter serving</span><h3>One base, many skills</h3><p>vLLM loads several LoRA adapters on one base model; choose per request via the <code>model</code> field.</p></div>
+    <div class="card"><span class="chip c-blue">Multi-adapter serving</span><h3>One base, many skills</h3><p>vLLM can load several LoRA adapters on one base model and pick one per request. On our setup the simpler route is one merged GGUF per dialect.</p></div>
     <div class="card"><span class="chip c-green">Observability</span><h3>Trace every step</h3><p>Langfuse traces retrieval, prompts, retries and latency so you can see exactly where a wrong answer came from.</p></div>
     <div class="card"><span class="chip c-rose">Multi-tenant</span><h3>Per-customer isolation</h3><p>One dictionary + index + read-only credential per customer; never share indexes across tenants.</p></div>
     <div class="card"><span class="chip c-amber">Clarification</span><h3>Human-in-the-loop</h3><p>LangGraph interrupts + a checkpointer (<code>thread_id</code>) let the graph pause to ask "top by what?" and resume.</p></div>
@@ -443,11 +637,42 @@ g.add_edge("patch_query", "validate_sql")</code></pre>
   <div class="tablebox"><table>
     <thead><tr><th>Trade-off</th><th>Option A</th><th>Option B</th></tr></thead>
     <tbody>
-      <tr><td>Model size</td><td>1.5B: fast, cheap, weaker joins</td><td>3B/7B: stronger, heavier (check licenses)</td></tr>
-      <tr><td>Serving</td><td>vLLM: fast, multi-adapter, needs GPU</td><td>llama.cpp GGUF: runs on CPU, slower</td></tr>
+      <tr><td>Model size</td><td>1.5B: fast, cheap, easy fit, weaker joins</td><td>Qwen3-4B-Instruct-2507: stronger but tight on 4 GB and slower to train; 3B is non-commercial licensed; 7B does not fit</td></tr>
+      <tr><td>Serving</td><td>vLLM: high throughput, hot-swap adapters, needs Linux + big GPU</td><td>llama.cpp GGUF: runs on Windows, CPU/GPU, small VRAM, one user at a time (our pick)</td></tr>
       <tr><td>Vector store</td><td>numpy/FAISS: simple, enough for 80 tables</td><td>vector DB: only if scale demands</td></tr>
       <tr><td>Retry depth</td><td>2 retries: bounded latency</td><td>more: diminishing returns</td></tr>
     </tbody></table></div>
+</section>
+
+<section id="rl">
+  <span class="lvl l-a">Advanced</span>
+  <h2>The three-step recipe: SFT, then GRPO, then voting</h2>
+  <p class="lead">The best small-model Text-to-SQL papers (SLM-SQL, FINER-SQL, Arctic-Text2SQL-R1) share one pattern. Method moves accuracy more than model size. This is our roadmap <b>after</b> the basic fine-tune works.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 760 190" role="img" aria-label="Three stages: SFT, GRPO with execution reward, sample and vote">
+    <defs><marker id="c1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="10" y="20" width="220" height="120" rx="12" class="f-violet"/><text x="120" y="46" text-anchor="middle" font-size="13" font-weight="700" style="fill:var(--violet)">1 SFT</text><text x="120" y="68" text-anchor="middle" font-size="11">Show (prompt → correct answer)</text><text x="120" y="84" text-anchor="middle" font-size="11">pairs. Model copies the pattern.</text><text x="120" y="112" text-anchor="middle" font-size="10.5" class="sub">Teaches format and basics</text><text x="120" y="128" text-anchor="middle" font-size="10.5" class="sub">This is the QLoRA step</text>
+    <path d="M230 80H268" class="line" marker-end="url(#c1)"/>
+    <rect x="270" y="20" width="220" height="120" rx="12" class="f-amber"/><text x="380" y="46" text-anchor="middle" font-size="13" font-weight="700" style="fill:var(--amber)">2 GRPO (RL)</text><text x="380" y="68" text-anchor="middle" font-size="11">Sample ~6 answers per question,</text><text x="380" y="84" text-anchor="middle" font-size="11">run each on Postgres, reward</text><text x="380" y="100" text-anchor="middle" font-size="11">the ones with correct rows.</text><text x="380" y="124" text-anchor="middle" font-size="10.5" class="sub">Teaches "what actually works"</text>
+    <path d="M490 80H528" class="line" marker-end="url(#c1)"/>
+    <rect x="530" y="20" width="220" height="120" rx="12" class="f-teal"/><text x="640" y="46" text-anchor="middle" font-size="13" font-weight="700" style="fill:var(--teal)">3 Sample + vote</text><text x="640" y="68" text-anchor="middle" font-size="11">At answer time: write N queries,</text><text x="640" y="84" text-anchor="middle" font-size="11">guard + execute each, return the</text><text x="640" y="100" text-anchor="middle" font-size="11">result most of them agree on.</text><text x="640" y="124" text-anchor="middle" font-size="10.5" class="sub">Trades latency for accuracy</text>
+    <text x="380" y="170" text-anchor="middle" font-size="11" class="sub">Each stage builds on the previous one; only stage 1 is in our first milestone.</text>
+  </svg></div>
+  <div class="grid">
+    <div class="card"><span class="chip c-violet">Stage 1 · SFT</span><h3>Imitation</h3><p>Loss is computed on the answer tokens only. Limited by how good and varied the examples are. Our template-made data is correct but narrow.</p></div>
+    <div class="card"><span class="chip c-amber">Stage 2 · GRPO</span><h3>Trial and reward</h3><p>No gold SQL needed per sample, only a gold <i>result</i>. The model tries, the database grades. Reward is simple: 1 if rows match, else 0 (plus small bonuses for valid JSON). It rewards different-but-correct SQL that SFT would punish.</p></div>
+    <div class="card"><span class="chip c-teal">Stage 3 · Voting</span><h3>Self-consistency by execution</h3><p>Group candidates by their <b>result set</b>, not SQL text, and pick the biggest group. Wrong answers tend to disagree with each other; right answers agree.</p></div>
+  </div>
+  <h3>What it costs us, honestly</h3>
+  <div class="tablebox"><table>
+    <thead><tr><th>Stage</th><th>Where it runs</th><th>Cost and risk</th></tr></thead>
+    <tbody>
+      <tr><td>SFT</td><td>Colab/Kaggle T4</td><td>Hours. Our first milestone.</td></tr>
+      <tr><td>GRPO</td><td>Colab/Kaggle, 1.5B model only</td><td>Many generations per step, each executed on a database the notebook can reach (needs a Postgres inside Colab, not our Docker). Slow on a T4 and the memory fit is unverified. Do it only if the SFT model plateaus.</td></tr>
+      <tr><td>Voting</td><td>Your PC</td><td>N times the generation time. llama-server can run parallel slots; we pick N by measuring latency. <b>Every candidate must pass the sqlglot guard before it is executed.</b></td></tr>
+    </tbody></table></div>
+  <div class="callout warn"><b>Caveat on the papers' numbers.</b> They use large public training sets, many samples (SLM-SQL's headline used 64) and heavy compute. Our gains will be smaller. They are existence proofs of the method, not predictions for our schema.</div>
+  <div class="callout tip"><b>Design hook now, so it is cheap later:</b> keep the eval runner and the executor able to compare <i>result sets</i>, and keep the generate node able to return N candidates. Both are needed by the evaluation anyway.</div>
 </section>
 
 <section id="fail">
@@ -470,17 +695,31 @@ g.add_edge("patch_query", "validate_sql")</code></pre>
 <section id="roadmap">
   <h2>Roadmap with what you learn at each step</h2>
   <ul class="steps">
-    <li><b>Docker + Postgres + seeded SaaS schema</b> — Docker, SQL, keys, roles. (Docker setup done; schema next.)</li>
+    <li><b>Docker + Postgres + seeded SaaS schema</b> — Docker, SQL, keys, roles. <span class="chip c-green">done</span> (8 tables, 1,000+ rows, read-only role verified)</li>
     <li><b>Repo scaffold + Dialect interface</b> — packaging, Protocols, YAML profiles.</li>
     <li><b>Evaluation set</b> — golden SQL, result-row comparison.</li>
     <li><b>Data dictionary</b> — business vocabulary as data.</li>
     <li><b>Retrieval</b> — embeddings, BM25, RRF, FK graph, recall@k.</li>
     <li><b>Baselines</b> — base model alone, then with RAG.</li>
     <li><b>Training data</b> — synthetic generation, execution filtering, template splits.</li>
-    <li><b>QLoRA fine-tune</b> — LoRA, quantization, Colab habits.</li>
+    <li><b>QLoRA fine-tune + GGUF export</b> — LoRA, quantization, Colab habits, merge/convert/quantize for llama.cpp.</li>
     <li><b>LangGraph loop + safety</b> — state machines, sqlglot, timeouts.</li>
     <li><b>API + UI + tracing</b> — FastAPI, SSE, Streamlit, Langfuse.</li>
+    <li><b>Advanced (optional)</b> — GRPO with an execution reward, multi-candidate execution voting, Qwen3-4B-Instruct-2507 bake-off.</li>
   </ul>
+</section>
+
+<section id="done">
+  <h2>Success criteria: how we know we are done</h2>
+  <p class="lead">Without numbers, "it works" is an opinion. These are the v1 targets, agreed up front so we cannot move the goalposts after seeing results.</p>
+  <div class="grid">
+    <div class="card"><span class="chip c-green">Accuracy</span><h3>&ge; 70% execution accuracy</h3><p>On <b>held-out query templates</b>, scored by comparing result rows. This number is a guess; we revise it once the first baseline exists.</p></div>
+    <div class="card"><span class="chip c-rose">Safety</span><h3>100% of attacks blocked</h3><p>Every write, injection and PII request in the red-team set must be stopped by the guard.</p></div>
+    <div class="card"><span class="chip c-blue">Speed</span><h3>p95 latency &lt; 10 s</h3><p>95% of questions answered within 10 seconds on the laptop, including retries.</p></div>
+    <div class="card"><span class="chip c-green">Data quality</span><h3>Golden queries verified</h3><p>Every golden query is executed against the database and its result checked before it enters the eval.</p></div>
+  </div>
+  <div class="callout"><b>Why held-out templates?</b> If test questions share a template with training questions, the model can pass by memorizing shapes. Testing on unseen templates measures real generalization, which is what the 70% target refers to.</div>
+  <div class="callout tip"><b>Concept: p95.</b> The latency that 95% of requests beat. It shows the slow tail that an average hides.</div>
 </section>
 
 <section id="quiz">
@@ -497,12 +736,39 @@ g.add_edge("patch_query", "validate_sql")</code></pre>
     <details><summary>8. Why are init scripts in Docker not re-running?</summary><p>They only run on an empty data volume. Use <code>down -v</code> to wipe it, then <code>up -d</code>.</p></details>
     <details><summary>9. Why must training and production share one prompt builder?</summary><p>A format mismatch between training and inference silently weakens the fine-tuned model.</p></details>
     <details><summary>10. How would you add MySQL later?</summary><p>Implement <code>dialects/mysql/</code>, generate data and train a <code>mysql-v1</code> adapter, register it with the model server, add a dictionary and profile. No change to graph/API/UI.</p></details>
+    <details><summary>11. Is DECIMAL inaccurate? Why store money as integer cents then?</summary><p>No: Postgres NUMERIC/DECIMAL is exact. Binary FLOAT is the inexact one. Integer cents is a convention that is exact and portable, but the model must divide by 100.0, so the dictionary documents it.</p></details>
+    <details><summary>12. Why is "total revenue" ambiguous in our schema?</summary><p><code>payments</code> links to either an order or an invoice (two nullable FKs), and can be refunded or failed. The dictionary must define which rows count (e.g. status = 'succeeded', both sources).</p></details>
+    <details><summary>13. Why do we use llama.cpp instead of vLLM on this PC?</summary><p>Your GPU has 4 GB VRAM and runs Windows. vLLM is Linux-oriented and wants more VRAM and throughput than one user needs. llama.cpp runs quantized GGUF models natively on Windows within 4 GB.</p></details>
+    <details><summary>14. What extra steps does the llama.cpp path add after training, and why evaluate after them?</summary><p>Merge the adapter into the base, convert to GGUF, quantize (e.g. Q4_K_M). Quantization can reduce accuracy, so the eval must run on the exact quantized file we serve.</p></details>
+    <details><summary>15. Why does switching serving engines not require rewriting our code?</summary><p>Both expose an OpenAI-style HTTP API and our generation client only needs a base URL and model name, so the engine is a replaceable detail.</p></details>
+    <details><summary>16. Which step between Colab and your PC is most likely to cost accuracy, and what do you do about it?</summary><p>Quantization to Q4_K_M (plus the small mismatch from merging into the 16-bit base rather than the 4-bit one QLoRA trained against). Evaluate the exact file you serve; if it drops, try Q5_K_M or Q8_0 if it still fits in VRAM.</p></details>
+    <details><summary>17. Why is Qwen3-4B-Instruct-2507 a challenger but not an automatic choice?</summary><p>It is more capable but nearly fills 4 GB VRAM and trains slower on a T4. (Plain Qwen3-4B also has thinking mode on by default, which is why we use the 2507 Instruct variant.) A bake-off against the 1.5B on our own eval decides.</p></details>
+    <details><summary>18. Why is Qwen3.5-4B parked for now?</summary><p>Its hybrid DeltaNet layers use custom kernels that are slow on a T4, Unsloth advises against 4-bit QLoRA for it, and its documented 4B LoRA recipe needs about 10 GB and bf16, which a T4 lacks.</p></details>
+    <details><summary>19. What techniques lift small-model SQL accuracy more than swapping base models?</summary><p>Supervised fine-tuning followed by reinforcement learning with an execution reward (GRPO), and sampling several candidates, executing them and voting at inference.</p></details>
   </div>
 </section>
 
 <section id="gloss">
   <h2>Glossary</h2>
   <div class="gl">
+    <div><b>GRPO</b> <span>Reinforcement-learning method: sample a group of answers, score each with a reward (for SQL, "did it return the right rows"), and push the model toward the better ones.</span></div>
+    <div><b>Execution reward</b> <span>Reward computed by actually running the SQL and comparing results.</span></div>
+    <div><b>KV cache</b> <span>Memory holding each processed token's attention keys/values; grows with context length and with layers x KV heads.</span></div>
+    <div><b>Thinking mode</b> <span>Qwen3 feature: the model writes reasoning in a think block before answering. Slow; we turn it off for JSON output.</span></div>
+    <div><b>PEFT</b> <span>Hugging Face library/format for adapter-style fine-tuning such as LoRA.</span></div>
+    <div><b>Bake-off</b> <span>Training and scoring candidate models on the same data and eval to choose between them.</span></div>
+    <div><b>Inference server</b> <span>Program that loads a model and answers requests over HTTP.</span></div>
+    <div><b>vLLM</b> <span>High-throughput GPU inference server (continuous batching, LoRA hot-swap); Linux-oriented.</span></div>
+    <div><b>llama.cpp</b> <span>C/C++ engine for running quantized models on CPU/GPU; <code>llama-server</code> serves an OpenAI-style API.</span></div>
+    <div><b>Quantization</b> <span>Storing weights with fewer bits (e.g. 4) to cut memory, at small accuracy cost.</span></div>
+    <div><b>Q4_K_M</b> <span>Common GGUF 4-bit quantization level (balance of size and quality).</span></div>
+    <div><b>GBNF</b> <span>llama.cpp's grammar format (GGML's flavor of BNF, Backus-Naur Form, a notation for writing grammar rules). It forces output to match a pattern such as our JSON.</span></div>
+    <div><b>Continuous batching</b> <span>Serving many requests in one GPU pass; vLLM's main speed trick.</span></div>
+    <div><b>Bridge table</b> <span>Table linking two others in a many-to-many relation (order_items).</span></div>
+    <div><b>CHECK constraint</b> <span>Rule the database enforces on every row.</span></div>
+    <div><b>Data dictionary</b> <span>YAML of business vocabulary, metric SQL and gotchas, retrieved into the prompt.</span></div>
+    <div><b>NUMERIC vs FLOAT</b> <span>NUMERIC is exact decimal; FLOAT is binary and approximate.</span></div>
+    <div><b>Seed data</b> <span>Deterministic fake rows used for development and eval.</span></div>
     <div><b>Adapter</b> <span>Small trained add-on file (LoRA) applied on a base model.</span></div>
     <div><b>BM25</b> <span>Keyword relevance scoring.</span></div>
     <div><b>Checkpointer</b> <span>LangGraph store that saves state so a run can pause/resume.</span></div>
@@ -515,7 +781,7 @@ g.add_edge("patch_query", "validate_sql")</code></pre>
     <div><b>Execution accuracy</b> <span>Share of questions whose result rows match gold.</span></div>
     <div><b>Fine-tuning</b> <span>Further training a model on task examples.</span></div>
     <div><b>FK / PK</b> <span>Foreign key / primary key.</span></div>
-    <div><b>GGUF</b> <span>Model file format for llama.cpp.</span></div>
+    <div><b>GGUF</b> <span>Single-file model format for llama.cpp (weights plus tokenizer info); successor to GGML's format. The letters are usually read as "GGML Universal Format"; the name matters less than what it is.</span></div>
     <div><b>Hallucination</b> <span>Confident but invented output.</span></div>
     <div><b>Image / Container</b> <span>Docker recipe / running copy of it.</span></div>
     <div><b>LangGraph</b> <span>Library for stateful node-and-edge LLM workflows.</span></div>
