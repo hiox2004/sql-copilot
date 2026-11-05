@@ -94,9 +94,9 @@ button.t{font:500 .8rem var(--body);border:1px solid var(--line);background:var(
   <div class="grp">Start</div>
   <a href="#how">How to use this</a><a href="#big">The big picture</a>
   <div class="grp">Basics</div>
-  <a href="#sql">SQL &amp; Postgres</a><a href="#llm">LLM basics</a><a href="#t2s">Text-to-SQL</a><a href="#docker">Docker</a><a href="#schema">Schema design</a><a href="#claude">Claude Code setup</a><a href="#hw">Your hardware</a>
+  <a href="#sql">SQL &amp; Postgres</a><a href="#llm">LLM basics</a><a href="#t2s">Text-to-SQL</a><a href="#docker">Docker</a><a href="#pyproj">Python project setup</a><a href="#schema">Schema design</a><a href="#dbtools">DB snapshots &amp; browsing</a><a href="#claude">Claude Code setup</a><a href="#hw">Your hardware</a>
   <div class="grp">Working</div>
-  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#ft">Fine-tuning</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
+  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
   <div class="grp">Advanced</div>
   <a href="#adv">Advanced topics</a><a href="#rl">SFT, GRPO, voting</a><a href="#fail">Failure modes</a>
   <div class="grp">Review</div>
@@ -231,8 +231,8 @@ docker compose -f infra/docker-compose.yml down -v     # stop, DELETE data</code
 
 <section id="schema">
   <span class="lvl l-b">Basics</span>
-  <h2>Schema design: the 8-table SaaS database</h2>
-  <p class="lead">The copilot is only as good as the database it reads. We built a realistic fake SaaS company in <code>data/schema/</code>: <code>01_schema.sql</code> (tables) and <code>02_seed.sql</code> (fake rows). Docker loads both automatically on first start.</p>
+  <h2>Schema design: a 36-table SaaS database</h2>
+  <p class="lead">The copilot is only as good as the database it reads. We built a realistic fake SaaS company in <code>data/schema/</code>. Docker loads the files in name order on first start: <code>01_schema</code> and <code>02_schema_extra</code> (tables), <code>03_seed_core</code> and <code>04_seed_extra</code> (fake rows), <code>99_checks</code> (consistency checks that abort the build if the data is inconsistent). The diagram below shows the <b>core 8</b> tables; 28 more surround them.</p>
   <div class="diagram">
   <svg viewBox="0 0 720 300" role="img" aria-label="Entity relationship diagram of the 8 tables">
     <defs><marker id="a8" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
@@ -259,17 +259,90 @@ docker compose -f infra/docker-compose.yml down -v     # stop, DELETE data</code
     <div class="card"><span class="chip c-green">COMMENT ON</span><h3>Built-in documentation</h3><p>Table/column comments live in the database itself and are raw material for the data dictionary.</p></div>
   </div>
   <div class="callout warn"><b>PII.</b> <code>users.email</code> and <code>users.full_name</code> are personal data. They never go into the dictionary or index, and the parser blocks them.</div>
-  <div class="callout warn"><b>Audit results (v1 seed data has flaws to fix before the eval set):</b>
-    <ul style="margin:6px 0 0;padding-left:18px">
-      <li>2 subscriptions have <code>canceled_at</code> in the <b>future</b>.</li>
-      <li>Free-tier subs are <code>past_due</code> (7) or <code>canceled</code> (4) though they have no billing; unrealistic.</li>
-      <li>30 invoices are issued <b>after</b> their subscription was canceled.</li>
-      <li>Only 3 churn events in the last 30 days: too few to test "churned this month" well.</li>
-      <li>4 organizations have no users.</li>
-      <li>Dates are relative to <code>NOW()</code> at seed time, so "this month" answers <b>drift</b> as real time passes. The eval needs a pinned reference date.</li>
-      <li>Passed checks: order totals equal item sums; no cancel-before-start; every paid/refunded order has a payment.</li>
-    </ul></div>
-  <div class="callout tip"><b>Lesson:</b> auditing data with SQL before building on it is itself a habit worth learning. Every bug above would have silently corrupted golden answers.</div>
+  <h3>Version 2: what the audit found and how it was fixed</h3>
+  <div class="tablebox"><table>
+    <thead><tr><th>v1 problem</th><th>Fix in v2</th></tr></thead>
+    <tbody>
+      <tr><td>Cancellation dates in the future</td><td>Dates derived from a pinned "today"; a check counts any violation</td></tr>
+      <tr><td>Free-tier subs that were <code>past_due</code></td><td>Database <code>CHECK</code>: free plan means price 0 and never past due</td></tr>
+      <tr><td>30 invoices issued after cancellation</td><td>Invoices generated only inside the subscription's life; check enforces it</td></tr>
+      <tr><td>Only 3 churn events last 30 days</td><td>Now 14, and a check fails the build if there are fewer than 8</td></tr>
+      <tr><td>Orgs with no users</td><td>Every org gets an admin user first</td></tr>
+      <tr><td><code>NOW()</code> made "this month" drift daily</td><td><b>Pinned date 2026-11-05 12:00 UTC</b>, used everywhere through <code>pg_temp.ref()</code></td></tr>
+      <tr><td>One subscription row, no history</td><td><code>subscription_events</code>: 28 upgrades, 3 downgrades, 13 reactivations, 40 cancels, 11 failed payments</td></tr>
+    </tbody></table></div>
+  <h3>The 36 tables, by group</h3>
+  <div class="tablebox"><table>
+    <thead><tr><th>Group</th><th>Tables</th><th>Why they are there</th></tr></thead>
+    <tbody>
+      <tr><td>Core (8)</td><td>organizations, users, subscriptions, invoices, products, orders, order_items, payments</td><td>The business: customers, billing, one-off sales</td></tr>
+      <tr><td>Billing extras (5)</td><td>plans, subscription_events, coupons, coupon_redemptions, refunds</td><td><code>plans</code> is a price <i>list</i>, not what customers pay (distractor). <code>refunds</code> makes "revenue" ambiguous.</td></tr>
+      <tr><td>Support (4)</td><td>support_agents, support_tickets, ticket_comments, csat_surveys</td><td>"tickets" vs "orders"; agents vs users vs employees</td></tr>
+      <tr><td>Usage (5)</td><td>features, feature_usage_daily, api_keys, api_requests_daily, login_events</td><td>Two "usage" tables with different meanings</td></tr>
+      <tr><td>Sales and marketing (5)</td><td>campaigns, leads, sales_reps, opportunities, email_events</td><td>Pipeline "deals" vs "orders"; leads become organizations</td></tr>
+      <tr><td>Internal HR (4)</td><td>departments, employees, expense_reports, office_locations</td><td>Employees are our staff, not customers' users; contains sensitive salary data</td></tr>
+      <tr><td>System (3)</td><td>audit_log, feature_flags, notifications</td><td>Look-alike names for activity and messaging</td></tr>
+      <tr><td>Misc (2)</td><td>addresses, org_settings</td><td>Realistic clutter</td></tr>
+    </tbody></table></div>
+  <div class="callout tip"><b>Concept: distractor tables.</b> With 8 tables, "retrieve the right tables" is trivial, so a retrieval system could look great by doing nothing. A distractor is a table with a plausible name that is the wrong answer to a question (<code>plans.monthly_price_cents</code> instead of <code>subscriptions.mrr_cents</code>, <code>employees</code> instead of <code>users</code>). They are what makes retrieval measurable.</div>
+  <h3>Consistency checks: tests for data</h3>
+  <p><code>99_checks.sql</code> holds 35 queries. Each counts violations of a rule (an <b>invariant</b>: something that must always be true) and must return 0. Examples: no invoice after cancellation; an order's total equals the sum of its items; a user's <code>last_login_at</code> equals their latest successful login; feature usage never happens after a subscription ends. Four more rules guard the <i>variety</i> of the data (at least 8 recent churns, 15 enterprise subscriptions, and so on). Run them any time:</p>
+  <pre><code>docker exec t2sql-postgres psql -U admin -d saas \
+  -v ref_now="'2026-11-05 12:00:00+00'" -f /schema/99_checks.sql</code></pre>
+  <div class="callout warn"><b>We proved the checks can fail.</b> All 35 passed on the first run, which is suspicious: a check that cannot fail is worthless. So we corrupted the data inside a transaction (future cancellation, invoice after cancel, wrong order total, fake login, org with no users, usage after cancel) and ran the checks. They named every corruption, and the rollback left the real data untouched. Always test your tests.</div>
+  <div class="callout"><b>Known limits.</b> The data is still synthetic and simple: revenue and amounts are uniform-ish, there is little seasonality, and "downgraded" has only 3 cases (the minimum the check allows). Windows tip: Git Bash rewrites paths like <code>/schema/x.sql</code>; prefix commands with <code>MSYS_NO_PATHCONV=1</code> when passing container paths.</div>
+  <div class="callout tip"><b>Lesson:</b> auditing data with SQL before building on it is a habit worth keeping. Every v1 bug would have silently corrupted golden answers.</div>
+</section>
+
+<section id="pyproj">
+  <span class="lvl l-b">Basics</span>
+  <h2>A Python project, properly set up</h2>
+  <p class="lead">Before the first line of real code, three things must exist: an isolated environment, a package definition, and a way to run tests. Skipping them is how "works on my machine" bugs are born.</p>
+  <div class="grid">
+    <div class="card"><span class="chip c-blue">Virtual environment</span><h3><code>.venv</code></h3><p>A private folder of Python packages for this project only. Installing here cannot break other projects or your system Python. Delete it and recreate it any time.</p></div>
+    <div class="card"><span class="chip c-blue">pyproject.toml</span><h3>The project's ID card</h3><p>Name, version, minimum Python, dependencies and tool settings in one file. <code>pip install -e ".[dev]"</code> reads it. The <code>[dev]</code> part adds optional extras (pytest, ruff).</p></div>
+    <div class="card"><span class="chip c-blue">Editable install</span><h3><code>-e</code></h3><p>Instead of copying the code into the venv, pip links to your folder. Edit a file and the change is live; no reinstall. Without it, <code>import t2sql</code> would fail or load a stale copy.</p></div>
+    <div class="card"><span class="chip c-blue">src layout</span><h3><code>src/t2sql/</code></h3><p>Code lives under <code>src/</code>, so tests can only import it after it is properly installed. That catches packaging mistakes early instead of in production.</p></div>
+  </div>
+  <div class="grid">
+    <div class="card"><span class="chip c-green">Runtime vs dev</span><p>Runtime dependencies (pydantic, pyyaml, psycopg, python-dotenv) ship with the app. Dev tools do not. Heavy ML libraries stay out of both: they belong with the training notebooks.</p></div>
+    <div class="card"><span class="chip c-green">pytest + markers</span><p>Fast <b>unit</b> tests need nothing. <b>Integration</b> tests (marker <code>integration</code>) need the database and skip themselves cleanly when it is down, so <code>pytest</code> never fails just because Docker is off.</p></div>
+    <div class="card"><span class="chip c-green">ruff</span><p>One fast tool for lint and import sorting. Rules enabled: pycodestyle (E), pyflakes (F), isort (I), bugbear (B), pyupgrade (UP).</p></div>
+  </div>
+  <h3>What the first tests protect</h3>
+  <ul class="steps">
+    <li>The package imports and every sub-package exists (layout is wired up).</li>
+    <li>The database has <b>36 tables</b> when reached through the <b>read-only</b> role.</li>
+    <li><b>Safety layer 1 as a test:</b> an INSERT through the read-only role must fail with a read-only-transaction error. If someone ever loosens the role, this test turns red.</li>
+    <li>No order is dated after the pinned "today" (a regression guard for the pinned-date decision).</li>
+  </ul>
+  <div class="callout tip"><b>Lesson from a warning.</b> The first install printed a deprecation warning: declaring the license as a table (<code>license = {text = "MIT"}</code>) is going away. The fix was <code>license = "MIT"</code> plus <code>setuptools&gt;=77</code>. Read warnings when they appear; they are cheapest to fix on day one.</div>
+</section>
+
+<section id="dbtools">
+  <span class="lvl l-b">Basics</span>
+  <h2>Keeping, browsing and experimenting with the database</h2>
+  <p class="lead">"Saved" can mean three different things. We have all three.</p>
+  <div class="grid">
+    <div class="card"><span class="chip c-green">1 Rebuildable</span><h3>Seed files are the truth</h3><p>The <code>data/schema/*.sql</code> files in git recreate the database exactly (pinned date, seeded randomness). Snapshots are a convenience; the recipe is the source of truth.</p></div>
+    <div class="card"><span class="chip c-blue">2 Snapshot file</span><h3><code>dump_db.sh</code></h3><p><code>pg_dump</code> writes a plain <code>.sql</code> file (1.8 MB for ours) to <code>data/snapshots/</code>. You can open it in an editor, copy it, or load it into any Postgres. It is gitignored because it is reproducible.</p></div>
+    <div class="card"><span class="chip c-amber">3 Scratch copy</span><h3><code>restore_db.sh</code></h3><p>Loads the snapshot into a separate database, <code>saas_scratch</code>, so you can run INSERT/UPDATE/DELETE and broken queries freely. Re-running resets it. It refuses to overwrite the real <code>saas</code>.</p></div>
+    <div class="card"><span class="chip c-violet">Browser</span><h3>pgAdmin</h3><p>Optional GUI at <code>http://localhost:5050</code> (compose profile <code>tools</code>, no login in desktop mode). Browse tables, view rows, run queries, see the ER structure. The first connection asks for the <code>admin</code> password from your <code>.env</code>.</p></div>
+  </div>
+  <div class="diagram">
+  <svg viewBox="0 0 700 150" role="img" aria-label="Seed files, live database, snapshot and scratch copy">
+    <defs><marker id="d1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="10" y="40" width="140" height="56" rx="10" class="f-green"/><text x="80" y="64" text-anchor="middle" font-size="12" font-weight="700">data/schema/*.sql</text><text x="80" y="82" text-anchor="middle" font-size="10" class="sub">in git, the recipe</text>
+    <path d="M150 68H188" class="line" marker-end="url(#d1)"/>
+    <rect x="190" y="40" width="130" height="56" rx="10" class="f-blue"/><text x="255" y="64" text-anchor="middle" font-size="12" font-weight="700">saas (live)</text><text x="255" y="82" text-anchor="middle" font-size="10" class="sub">Docker volume</text>
+    <path d="M320 68H358" class="line" marker-end="url(#d1)"/><text x="339" y="60" text-anchor="middle" font-size="10" class="sub">pg_dump</text>
+    <rect x="360" y="40" width="130" height="56" rx="10" class="f-amber"/><text x="425" y="64" text-anchor="middle" font-size="12" font-weight="700">saas.sql</text><text x="425" y="82" text-anchor="middle" font-size="10" class="sub">snapshot file</text>
+    <path d="M490 68H528" class="line" marker-end="url(#d1)"/><text x="509" y="60" text-anchor="middle" font-size="10" class="sub">restore</text>
+    <rect x="530" y="40" width="160" height="56" rx="10" class="f-violet"/><text x="610" y="64" text-anchor="middle" font-size="12" font-weight="700">saas_scratch</text><text x="610" y="82" text-anchor="middle" font-size="10" class="sub">safe to wreck</text>
+    <text x="350" y="130" text-anchor="middle" font-size="11" class="sub">pgAdmin can open both databases. Only the live one is read by the copilot.</text>
+  </svg></div>
+  <div class="callout warn"><b>Gotcha: "down -v" deletes the live data.</b> The Docker volume survives stops and restarts, but <code>down -v</code> wipes it. That is safe here because the seed files rebuild everything, but a snapshot of anything you cannot regenerate should be taken first.</div>
+  <div class="callout tip"><b>Why a scratch database matters for this project.</b> To judge whether a generated query is correct you often run it, and some candidates will write rows. A throwaway copy lets you test freely; the copilot itself still only uses the read-only role on the real database.</div>
 </section>
 
 <section id="claude">
@@ -398,6 +471,78 @@ enums:
   </div>
 </section>
 
+<section id="dict2">
+  <span class="lvl l-w">Working</span>
+  <h2>What our dictionary must settle (from the actual schema)</h2>
+  <p class="lead">A dictionary is only useful where the schema alone leaves the model guessing. These are the real ambiguities in our 36 tables. "Proposal" means my suggested definition; the business owner (you) decides.</p>
+  <div class="tablebox"><table>
+    <thead><tr><th>Phrase in a question</th><th>Why the schema is ambiguous</th><th>Proposal</th></tr></thead>
+    <tbody>
+      <tr><td>customer, account, client</td><td><code>organizations</code>, <code>users</code> and <code>leads</code> all look like "customers"</td><td>= organizations</td></tr>
+      <tr><td>revenue</td><td>Two payment sources (orders and invoices), plus failed and refunded payments</td><td>Sum of <code>payments.amount_cents</code> where status = 'succeeded', both sources, in dollars</td></tr>
+      <tr><td>sales</td><td>Could mean revenue or the sales pipeline (<code>opportunities</code>)</td><td>= order revenue; pipeline questions say "deals"</td></tr>
+      <tr><td>MRR</td><td><code>plans.monthly_price_cents</code> is a list price; <code>subscriptions.mrr_cents</code> also exists for canceled and trialing rows</td><td>Sum of <code>subscriptions.mrr_cents</code> where status IN ('active','past_due')</td></tr>
+      <tr><td>churned</td><td>A canceled subscription, or any cancel event? Reactivated customers have a cancel event but are not canceled now</td><td>status = 'canceled' with <code>canceled_at</code> in the window (default last 30 days)</td></tr>
+      <tr><td>big / large account</td><td>No size column</td><td>mrr_cents &gt;= 100000 or plan_tier = 'enterprise'</td></tr>
+      <tr><td>active (customer vs user)</td><td>Subscription status 'active' vs recent login</td><td>active customer = subscription status 'active'; active user = successful login in last 30 days</td></tr>
+      <tr><td>upgrade / downgrade</td><td>Only visible in history, not on <code>subscriptions</code></td><td>Count rows in <code>subscription_events</code></td></tr>
+      <tr><td>user vs employee vs agent vs rep</td><td>Four tables of people</td><td>users = customers' people; employees = HR; agents = support staff; reps = sales staff</td></tr>
+      <tr><td>open tickets</td><td>Status has 'open' and 'pending'</td><td>status IN ('open','pending')</td></tr>
+      <tr><td>this month / last quarter</td><td>Needs a calendar and a "today"</td><td>Calendar periods relative to the pinned date; UTC</td></tr>
+      <tr><td>amounts</td><td>All money is integer cents</td><td>Always divide by 100.0 and label USD</td></tr>
+    </tbody></table></div>
+  <h3>How much each choice changes the answer (our real data, pinned date)</h3>
+  <div class="tablebox"><table>
+    <thead><tr><th>Question</th><th>Option</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td rowspan="4">Current MRR</td><td>active only</td><td>$122,586</td></tr>
+      <tr><td>+ past_due (proposal)</td><td>$126,486</td></tr>
+      <tr><td>+ trialing</td><td>$156,060</td></tr>
+      <tr><td>every row, incl. canceled (wrong)</td><td>$218,436</td></tr>
+      <tr><td rowspan="3">Revenue</td><td>succeeded payments, both sources (proposal)</td><td>$2,616,259</td></tr>
+      <tr><td>wrongly including failed</td><td>$2,804,265 (+7%)</td></tr>
+      <tr><td>wrongly including refunded</td><td>$2,725,569 (+4%)</td></tr>
+      <tr><td rowspan="2">Churned, last 30 days</td><td>status canceled in window</td><td>14</td></tr>
+      <tr><td>any cancel event in window</td><td>14 (same now; differs for older windows because 13 customers reactivated)</td></tr>
+      <tr><td>Big account</td><td>MRR &gt;= $1,000, enterprise, or either</td><td>36 each: identical in our data</td></tr>
+      <tr><td rowspan="2">Active users (450)</td><td>login in last 30 days</td><td>446 (99%): hardly discriminates</td></tr>
+      <tr><td>login in last 7 days</td><td>290 (64%)</td></tr>
+      <tr><td rowspan="3">Orders</td><td>"this month" (Nov 1-5)</td><td>21</td></tr>
+      <tr><td>"last month" (Oct)</td><td>125</td></tr>
+      <tr><td>last 30 days</td><td>127</td></tr>
+      <tr><td rowspan="3">Tickets</td><td>open</td><td>143</td></tr>
+      <tr><td>open + pending (proposal)</td><td>261</td></tr>
+      <tr><td>not yet resolved/closed</td><td>261 (same set)</td></tr>
+    </tbody></table></div>
+  <div class="callout warn"><b>Data weakness found while measuring:</b> logins are spread uniformly, so 99% of users count as "active in 30 days". A metric that returns almost everyone cannot be tested meaningfully. The seed should later give users uneven activity (some dormant, canceled orgs logging in less).</div>
+  <h3>Beyond content: what the dictionary system itself needs</h3>
+  <div class="grid">
+    <div class="card"><span class="chip c-green">Format + validation</span><p>A strict schema for the YAML (Pydantic model) so a typo is caught at load time, not at answer time.</p></div>
+    <div class="card"><span class="chip c-green">Executable metrics</span><p>Every metric snippet is run against the database in a test; a broken definition fails the build. A test also checks every referenced table and column still exists.</p></div>
+    <div class="card"><span class="chip c-teal">Always-on vs retrieved</span><p>Global rules (cents, pinned date) go in every prompt. Table and metric entries are retrieved per question to save tokens.</p></div>
+    <div class="card"><span class="chip c-violet">Examples, not only rules</span><p>Question-to-SQL exemplars are often more effective than prose rules for small models. They can live beside the dictionary and be retrieved the same way.</p></div>
+    <div class="card"><span class="chip c-amber">Prompt budget</span><p>On a 4 GB GPU we aim for roughly 1.5k to 2k prompt tokens total. The dictionary share must be a small slice.</p></div>
+    <div class="card"><span class="chip c-rose">Prove it helps</span><p>A dictionary can also hurt (too many or wrong entries confuse a small model). Eval with and without it, and measure dictionary-entry retrieval recall separately.</p></div>
+  </div>
+  <h3>One dictionary per database, and how big it gets</h3>
+  <p>Each database (a "profile" in <code>data/profiles/</code>) has its own file, e.g. <code>data/dictionaries/saas.yaml</code>. Shared across projects: the YAML format, the generator that drafts a skeleton from the database, the validators, and reusable metric templates. Not shared: what the business words mean.</p>
+  <div class="tablebox"><table>
+    <thead><tr><th>Part (our 36 tables, 201 columns)</th><th>Rough count</th><th>Rough tokens (estimate)</th></tr></thead>
+    <tbody>
+      <tr><td>Table descriptions and synonyms</td><td>36</td><td>~1.5k</td></tr>
+      <tr><td>Notes on non-obvious columns only</td><td>~40</td><td>~1k</td></tr>
+      <tr><td>Enum value lists</td><td>~25</td><td>~0.8k</td></tr>
+      <tr><td>Metrics (revenue, MRR, churn, ...)</td><td>~15</td><td>~1k</td></tr>
+      <tr><td>Global gotchas</td><td>~10</td><td>~0.3k</td></tr>
+      <tr><td><b>Whole dictionary, without examples</b></td><td></td><td><b>~4-5k (about 15-20 KB)</b></td></tr>
+      <tr><td>Optional question-to-SQL examples</td><td>100-200</td><td>+8-16k</td></tr>
+      <tr><td><b>Injected per question</b></td><td>3-8 entries</td><td><b>~300-600</b></td></tr>
+    </tbody></table></div>
+  <p class="count" style="font-size:.8rem;color:var(--muted)">Counts come from the database (201 columns) and my planning; token figures are estimates, not measurements.</p>
+  <div class="callout warn"><b>Unproven assumption:</b> that a model fine-tuned on <i>our</i> schema will follow the dictionary of a <i>different</i> database. To test it, we would evaluate on a second, unseen schema. If transfer is weak, a new database needs extra training data from varied schemas.</div>
+  <div class="callout"><b>Governance.</b> A wrong definition produces confident wrong answers at scale. Each metric needs a named owner, a one-line rationale and a change log. Overrides ("revenue including refunds") must surface in the model's <code>assumptions</code> output.</div>
+</section>
+
 <section id="ft">
   <span class="lvl l-w">Working</span>
   <h2>Fine-tuning a small model with QLoRA</h2>
@@ -427,6 +572,28 @@ RESPONSE = {"sql": "...", "tables_used": [...], "assumptions": [...]}
 Also include: distractor tables, MISSING_SCHEMA_KEY refusals,
              and (bad SQL + error message -> fixed SQL) pairs.</code></pre>
   <div class="callout warn"><b>Data rules that matter most.</b> (1) Execute every golden query on the seeded DB and drop failures. (2) Split train/test by <i>query template</i>, not randomly, or you test on memorized shapes. (3) Use the same prompt builder as production, or you get a silent train/serve mismatch. (4) Expect 1,000+ pairs. (5) T4 has no bf16: train in fp16 and save checkpoints to Drive.</div>
+</section>
+
+<section id="multidb">
+  <span class="lvl l-a">Advanced</span>
+  <h2>One model, many databases: what is fine-tuning actually for?</h2>
+  <p class="lead">The schema and dictionary arrive in the prompt on every question. Fine-tuning is meant to teach <b>skills that do not depend on any one database</b>: reading the context it is given, our JSON format, strict Postgres style, fixing a query from an error, and refusing when a column does not exist. It is <i>not</i> meant to memorize our tables.</p>
+  <div class="callout warn"><b>The catch.</b> If every training example comes from one schema, the model can quietly learn <i>our tables</i> instead of the skill. It then scores well on our eval and fails on a new schema. This is the central risk of the whole multi-database idea.</div>
+  <div class="tablebox"><table>
+    <thead><tr><th>Strategy</th><th>Trained on</th><th>Cost of a new database</th><th>Risk</th></tr></thead>
+    <tbody>
+      <tr><td><b>A. Schema-specific</b></td><td>Only our schema</td><td>Retrain per database</td><td>Great here, poor transfer</td></tr>
+      <tr><td><b>B. Schema-agnostic skills</b></td><td>Many schemas, names shuffled</td><td>Dictionary + index only</td><td>Needs varied data (more work up front)</td></tr>
+      <tr><td><b>C. No fine-tune</b></td><td>Nothing</td><td>Dictionary + index only</td><td>Lower accuracy; also our baseline</td></tr>
+    </tbody></table></div>
+  <div class="callout tip"><b>Plan.</b> Build for our database first (that is how the pipeline is learned), but write the training-data generator against <i>any introspected schema</i>, not against ours. Most SQL patterns are structural (join along a foreign key, group by an enum, filter by a date range); only metric definitions are business-specific and those come from the dictionary. Later add two or three small synthetic schemas (library, hospital, e-commerce) and hold one <b>entirely out</b> of training as a transfer test.</div>
+  <div class="grid">
+    <div class="card"><span class="chip c-violet">Anti-memorization</span><p>Vary which tables appear in each prompt, shuffle their order, and rename tables and columns in some examples, so the model must read the prompt instead of recalling.</p></div>
+    <div class="card"><span class="chip c-teal">New Postgres database</span><p>Profile YAML, read-only role, draft dictionary from the generator, human review of metrics, build index, auto-generate a test set plus a few real questions, run the eval, retrain only if the score is too low.</p></div>
+    <div class="card"><span class="chip c-rose">New dialect</span><p>Bigger step than a new database: dialect-specific training data, validator and safety rules (see the Dialect plug-in).</p></div>
+  </div>
+  <div class="callout"><b>Decision (2026-11-05): A now, B later.</b> We train on our one schema first. Keep the generator schema-agnostic so moving to B is cheap, and treat high scores on our own eval with caution until a held-out schema exists.</div>
+  <p class="count" style="font-size:.8rem;color:var(--muted)">Effort for a new database is not measured; the human-heavy steps are the metric review and the real test questions.</p>
 </section>
 
 <section id="graph">
@@ -695,7 +862,7 @@ httpx.post("http://localhost:8080/v1/chat/completions", json={
 <section id="roadmap">
   <h2>Roadmap with what you learn at each step</h2>
   <ul class="steps">
-    <li><b>Docker + Postgres + seeded SaaS schema</b> — Docker, SQL, keys, roles. <span class="chip c-green">done</span> (8 tables, 1,000+ rows, read-only role verified)</li>
+    <li><b>Docker + Postgres + seeded SaaS schema</b> — Docker, SQL, keys, roles. <span class="chip c-green">done</span> (36 tables, ~42k rows, pinned date, 35 consistency checks, read-only role verified)</li>
     <li><b>Repo scaffold + Dialect interface</b> — packaging, Protocols, YAML profiles.</li>
     <li><b>Evaluation set</b> — golden SQL, result-row comparison.</li>
     <li><b>Data dictionary</b> — business vocabulary as data.</li>
@@ -737,6 +904,12 @@ httpx.post("http://localhost:8080/v1/chat/completions", json={
     <details><summary>9. Why must training and production share one prompt builder?</summary><p>A format mismatch between training and inference silently weakens the fine-tuned model.</p></details>
     <details><summary>10. How would you add MySQL later?</summary><p>Implement <code>dialects/mysql/</code>, generate data and train a <code>mysql-v1</code> adapter, register it with the model server, add a dictionary and profile. No change to graph/API/UI.</p></details>
     <details><summary>11. Is DECIMAL inaccurate? Why store money as integer cents then?</summary><p>No: Postgres NUMERIC/DECIMAL is exact. Binary FLOAT is the inexact one. Integer cents is a convention that is exact and portable, but the model must divide by 100.0, so the dictionary documents it.</p></details>
+    <details><summary>23. If the model is fine-tuned on one schema, what is the main risk when we add a second database?</summary><p>It may have learned our specific tables instead of the general skill of reading the schema and dictionary in the prompt. The fix is schema-agnostic training data (several schemas, shuffled and renamed) and a held-out schema to measure transfer.</p></details>
+    <details><summary>24. Why install the project with <code>pip install -e</code> instead of a normal install?</summary><p>An editable install links the venv to your source folder, so edits take effect immediately and imports always see the current code, while still testing that the package is properly installable.</p></details>
+    <details><summary>25. Why do integration tests skip instead of fail when Docker is off?</summary><p>They are marked <code>integration</code> and the fixture skips when the database is unreachable, so the fast test run never breaks because of the environment, while a real failure with the DB up still shows.</p></details>
+    <details><summary>20. Why do the golden answers need a pinned "today"?</summary><p>Questions like "churned this month" depend on the current date. If the data hangs off <code>NOW()</code>, the right answer changes every day and the eval expires. Pinning the date (2026-11-05, also injected into the prompt) keeps answers stable.</p></details>
+    <details><summary>21. All 35 data checks passed on the first run. Why did we still corrupt the data on purpose?</summary><p>A check that can never fail proves nothing. Injecting known violations in a rolled-back transaction showed each check actually detects its rule.</p></details>
+    <details><summary>22. What is a distractor table, and why add them?</summary><p>A plausibly named table that is wrong for a question (plans vs subscriptions, employees vs users). With only 8 tables retrieval is trivial; distractors make table-pruning quality measurable.</p></details>
     <details><summary>12. Why is "total revenue" ambiguous in our schema?</summary><p><code>payments</code> links to either an order or an invoice (two nullable FKs), and can be refunded or failed. The dictionary must define which rows count (e.g. status = 'succeeded', both sources).</p></details>
     <details><summary>13. Why do we use llama.cpp instead of vLLM on this PC?</summary><p>Your GPU has 4 GB VRAM and runs Windows. vLLM is Linux-oriented and wants more VRAM and throughput than one user needs. llama.cpp runs quantized GGUF models natively on Windows within 4 GB.</p></details>
     <details><summary>14. What extra steps does the llama.cpp path add after training, and why evaluate after them?</summary><p>Merge the adapter into the base, convert to GGUF, quantize (e.g. Q4_K_M). Quantization can reduce accuracy, so the eval must run on the exact quantized file we serve.</p></details>
@@ -764,6 +937,12 @@ httpx.post("http://localhost:8080/v1/chat/completions", json={
     <div><b>Q4_K_M</b> <span>Common GGUF 4-bit quantization level (balance of size and quality).</span></div>
     <div><b>GBNF</b> <span>llama.cpp's grammar format (GGML's flavor of BNF, Backus-Naur Form, a notation for writing grammar rules). It forces output to match a pattern such as our JSON.</span></div>
     <div><b>Continuous batching</b> <span>Serving many requests in one GPU pass; vLLM's main speed trick.</span></div>
+    <div><b>Editable install</b> <span><code>pip install -e</code>: links the environment to your source folder so edits are live.</span></div>
+    <div><b>pyproject.toml</b> <span>Single file declaring a Python project's metadata, dependencies and tool settings.</span></div>
+    <div><b>pytest marker</b> <span>Label on a test (e.g. integration) used to select or skip groups of tests.</span></div>
+    <div><b>Distractor table</b> <span>Table with a plausible name that is wrong for the question; makes retrieval measurable.</span></div>
+    <div><b>Invariant</b> <span>A rule that must always hold in the data (e.g. no invoice after cancellation).</span></div>
+    <div><b>Pinned date</b> <span>Fixed "today" for seed data and prompts so answers do not change as real time passes.</span></div>
     <div><b>Bridge table</b> <span>Table linking two others in a many-to-many relation (order_items).</span></div>
     <div><b>CHECK constraint</b> <span>Rule the database enforces on every row.</span></div>
     <div><b>Data dictionary</b> <span>YAML of business vocabulary, metric SQL and gotchas, retrieved into the prompt.</span></div>
