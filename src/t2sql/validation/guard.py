@@ -44,6 +44,7 @@ _FORBIDDEN_NODES: tuple[type[exp.Expression], ...] = (
     exp.Commit,
     exp.Rollback,
     exp.Use,
+    exp.Lock,  # SELECT ... FOR UPDATE takes row locks
 )
 
 
@@ -72,6 +73,8 @@ def guard_sql(
 ) -> GuardResult:
     tree = _parse_single_statement(sql, dialect.sqlglot_name)
     policy = dialect.guard_policy
+    while isinstance(tree, exp.Subquery) and not tree.args.get("alias"):
+        tree = tree.this  # "(SELECT ...)" as the whole statement: judge the SELECT inside it
 
     if not isinstance(tree, exp.Select | exp.Union | exp.Subquery):
         raise GuardViolation("not_select", f"only SELECT is allowed, got {type(tree).__name__}")
@@ -101,9 +104,14 @@ def _parse_single_statement(sql: str, dialect: str) -> exp.Expression:
 
 
 def _check_function(node: exp.Func, policy: GuardPolicy) -> None:
-    name = (node.name if isinstance(node, exp.Anonymous) else node.sql_name()).lower()
+    anonymous = isinstance(node, exp.Anonymous)
+    name = (node.name if anonymous else node.sql_name()).lower()
     if name in policy.blocked_functions or name.startswith(policy.blocked_function_prefixes):
         raise GuardViolation("blocked_function", f"function {name}() is not allowed")
+    if anonymous and name not in policy.allowed_anonymous_functions:
+        raise GuardViolation(
+            "function_not_allowed", f"function {name}() is not on the allowed list"
+        )
 
 
 def _check_tables(
@@ -121,10 +129,17 @@ def _check_tables(
             raise GuardViolation("system_table", f"system table {name!r} is not allowed")
         if name in cte_names and not table.db:
             continue  # a reference to a WITH ... AS name, not a real table
+        if table.db and table.db.lower() != policy.default_schema:
+            raise GuardViolation("unknown_schema", f"schema {table.db!r} is not allowed")
         if name not in allowed:
             raise GuardViolation("unknown_table", f"table {name!r} is not in the dictionary")
-        scope[(table.alias_or_name or name).lower()] = name
-        scope.setdefault(name, name)
+        # One flat alias map is only correct if no alias means two different tables. Refuse the
+        # ambiguous case instead of guessing: a wrong guess could let personal data through.
+        for key in ((table.alias_or_name or name).lower(), name):
+            if scope.setdefault(key, name) != name:
+                raise GuardViolation(
+                    "ambiguous_alias", f"{key!r} names more than one table; use distinct aliases"
+                )
     return scope
 
 

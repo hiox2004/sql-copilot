@@ -13,6 +13,7 @@ for f in /schema/*.sql; do
   psql -v ON_ERROR_STOP=1 -v ref_now="'${REF_NOW}'" --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -f "$f"
 done
 
-# Tables now exist: make sure the read-only role can read all of them.
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
-  -c "GRANT SELECT ON ALL TABLES IN SCHEMA public TO ${COPILOT_RO_USER};"
+# Tables now exist: give the read-only role SELECT, but NOT on personal-data columns.
+# The file is generated from the dictionary's pii flags (scripts/gen_column_grants.py).
+psql -v ON_ERROR_STOP=1 -v ro_user="$COPILOT_RO_USER" --username "$POSTGRES_USER" \
+  --dbname "$POSTGRES_DB" -f /schema/grants/copilot_ro.sql

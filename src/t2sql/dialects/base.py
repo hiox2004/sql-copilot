@@ -15,10 +15,14 @@ from t2sql.core.schema_models import SchemaInfo
 class GuardPolicy:
     """What the SQL Guard must refuse for one database. Names are lowercase."""
 
-    blocked_functions: frozenset[str]  # exact function names that are never allowed
+    # Functions the SQL parser does not recognise ("anonymous") are refused unless listed here.
+    # An allowlist, because the database has hundreds of helpers that read data or run SQL.
+    allowed_anonymous_functions: frozenset[str]
+    blocked_functions: frozenset[str]  # known functions that are still never allowed
     blocked_function_prefixes: tuple[str, ...]  # whole families, e.g. file-system helpers
     system_schemas: frozenset[str]  # schemas holding the database's own catalog
     system_table_prefixes: tuple[str, ...]  # catalog tables that need no schema prefix
+    default_schema: str  # the only schema generated SQL may name explicitly
 
 
 class Dialect(Protocol):

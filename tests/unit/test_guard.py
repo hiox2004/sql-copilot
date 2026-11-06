@@ -174,3 +174,66 @@ def test_dictionary_metrics_pass_the_guard(name):
 
     sql = render_metric_sql(DICTIONARY.metrics[name], datetime(2026, 11, 5, 12, tzinfo=UTC))
     assert guard(sql).sql
+
+
+# ---------- bypasses found by the independent Opus review (each was ALLOWED before) ----------
+
+
+@pytest.mark.parametrize(
+    ("sql", "rule"),
+    [
+        # one alias, two different tables: a flat alias map would resolve it to the wrong one
+        (
+            "SELECT a.email FROM users a WHERE EXISTS(SELECT 1 FROM organizations a)",
+            "ambiguous_alias",
+        ),
+        (
+            "SELECT a.* FROM users a WHERE EXISTS(SELECT 1 FROM organizations a)",
+            "ambiguous_alias",
+        ),
+        (
+            "SELECT to_json(a) FROM users a WHERE EXISTS(SELECT 1 FROM organizations a)",
+            "function_not_allowed",
+        ),
+        # functions that read tables or run SQL text: not on the allowlist
+        ("SELECT table_to_xml('users', true, false, '')", "function_not_allowed"),
+        (
+            "SELECT query_to_xml_and_xmlschema('select email from users', true, false, '')",
+            "function_not_allowed",
+        ),
+        ("SELECT * FROM ts_stat('select to_tsvector(email) from users')", "function_not_allowed"),
+        ("SELECT nextval('users_id_seq')", "function_not_allowed"),
+        ("SELECT setval('users_id_seq', 1)", "function_not_allowed"),
+        ("SELECT inet_server_addr()", "function_not_allowed"),
+        ("SELECT row_to_json(u) FROM users u", "function_not_allowed"),
+        # known functions that are still unsafe
+        ("SELECT current_user", "blocked_function"),
+        ("SELECT current_database()", "blocked_function"),
+        ("SELECT repeat('x', 100000000)", "blocked_function"),
+        ("SELECT lpad('x', 100000000, 'y')", "blocked_function"),
+        # locking and schemas
+        ("SELECT id FROM users FOR UPDATE", "forbidden_statement"),
+        ("SELECT id FROM other_schema.organizations", "unknown_schema"),
+    ],
+)
+def test_review_bypasses_are_refused(sql, rule):
+    assert rule_of(sql) == rule
+
+
+def test_explicitly_public_schema_is_fine():
+    assert guard("SELECT id FROM public.organizations").sql
+
+
+def test_parenthesised_select_gets_one_valid_limit():
+    result = guard("(SELECT id FROM organizations LIMIT 5000)")
+    assert result.sql.count("LIMIT") == 1 and result.sql.endswith("LIMIT 1000")
+
+
+def test_same_alias_for_the_same_table_in_two_scopes_is_fine():
+    sql = "SELECT count(*) FROM (SELECT o.id FROM organizations o) q, organizations o"
+    assert guard(sql).sql
+
+
+def test_allowlisted_helper_functions_still_work():
+    assert guard("SELECT age(created_at) FROM organizations").sql
+    assert guard("SELECT split_part(name, ' ', 1) FROM organizations").sql
