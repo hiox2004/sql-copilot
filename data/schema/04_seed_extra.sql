@@ -153,7 +153,9 @@ SELECT CASE WHEN random() < 0.75
        'Prospect ' || g, 'lead' || g || '@example.test',
        (ARRAY['new','qualified','lost'])[1 + floor(random()*3)::int], lc.t, NULL
 FROM generate_series(1,400) g
-CROSS JOIN LATERAL (SELECT pg_temp.ref() - random() * interval '450 days' AS t) lc;
+-- `+ 0 * g` ties the draw to the row; otherwise Postgres evaluates random() once for ALL rows
+-- (every prospect would share one created_at, as it did before 2026-11-07).
+CROSS JOIN LATERAL (SELECT pg_temp.ref() - (random() + 0 * g) * interval '450 days' AS t) lc;
 
 INSERT INTO opportunities (lead_id, rep_id, stage, amount_cents, created_at, closed_at)
 SELECT l.id, 1 + floor(random()*8)::int, 'won', GREATEST(s.mrr_cents, 4900) * 12,
@@ -175,7 +177,7 @@ SELECT l.campaign_id, l.id, e.t, LEAST(l.created_at + e.off, pg_temp.ref())
 FROM leads l
 CROSS JOIN LATERAL (VALUES ('sent', interval '1 day', 1.0), ('opened', interval '2 days', 0.5),
                            ('clicked', interval '3 days', 0.15), ('unsubscribed', interval '4 days', 0.03)) e(t, off, p)
-WHERE l.campaign_id IS NOT NULL AND random() < e.p;
+WHERE l.campaign_id IS NOT NULL AND random() + 0 * l.id < e.p;  -- `+ 0 * l.id`: draw per lead, not once per event type
 
 -- ---------- HR (internal company, unrelated to customers) ----------
 INSERT INTO departments (name, cost_center) VALUES
@@ -191,7 +193,7 @@ SELECT 1 + g % 6, 'Employee ' || g, 'employee' || g || '@company.test',
        CASE WHEN g % 10 = 0 THEN h.hired + interval '60 days' + random() * (pg_temp.ref() - h.hired - interval '60 days') END,
        6000000 + 100000 * floor(random()*100)::int
 FROM generate_series(1,40) g
-CROSS JOIN LATERAL (SELECT pg_temp.ref() - interval '120 days' - random() * interval '1500 days' AS hired) h;
+CROSS JOIN LATERAL (SELECT pg_temp.ref() - interval '120 days' - (random() + 0 * g) * interval '1500 days' AS hired) h;
 
 INSERT INTO expense_reports (employee_id, amount_cents, category, status, submitted_at)
 SELECT e.id, 2000 + floor(random()*200000)::int,

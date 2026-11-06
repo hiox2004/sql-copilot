@@ -92,6 +92,12 @@ BEGIN
      'SELECT (count(*) < 8)::int FROM subscriptions WHERE status = ''past_due'''),
     ('login activity looks uniform (need 5-40% of users active in 7 days, 20-70% in 30 days)',
      'SELECT (a7 < 0.05 * n OR a7 > 0.40 * n OR a30 < 0.20 * n OR a30 > 0.70 * n)::int FROM (SELECT count(*)::numeric AS n, count(*) FILTER (WHERE last_login_at > pg_temp.ref() - interval ''7 days'') AS a7, count(*) FILTER (WHERE last_login_at > pg_temp.ref() - interval ''30 days'') AS a30 FROM users) s'),
+    ('dates look constant: random() evaluated once instead of per row (prospect leads, lost deals, hire dates)',
+     'SELECT ((SELECT count(DISTINCT created_at) FROM leads WHERE converted_org_id IS NULL) < 100 OR (SELECT count(DISTINCT closed_at) FROM opportunities WHERE stage = ''lost'') < 20 OR (SELECT count(DISTINCT hired_at) FROM employees) < 20)::int'),
+    ('marketing channels look degenerate (every channel needs >= 30 leads and a conversion rate strictly between 0 and 60 percent)',
+     'SELECT count(*) FROM (SELECT c.channel FROM campaigns c LEFT JOIN leads l ON l.campaign_id = c.id GROUP BY c.channel HAVING count(l.id) < 30 OR avg((l.status = ''converted'')::int) NOT BETWEEN 0.01 AND 0.60) bad'),
+    ('email funnel degenerate (need >= 20 opened and >= 5 clicked events, and fewer opens than sends)',
+     'SELECT ((count(*) FILTER (WHERE event_type = ''opened'') < 20) OR (count(*) FILTER (WHERE event_type = ''clicked'') < 5) OR (count(*) FILTER (WHERE event_type = ''opened'') >= count(*) FILTER (WHERE event_type = ''sent'')))::int FROM email_events'),
     ('too few upgrades/downgrades/reactivations (need >= 10 / 3 / 3)',
      'SELECT ((count(*) FILTER (WHERE event_type = ''upgraded'') < 10) OR (count(*) FILTER (WHERE event_type = ''downgraded'') < 3) OR (count(*) FILTER (WHERE event_type = ''reactivated'') < 3))::int FROM subscription_events')
   ) AS t(name, q)
