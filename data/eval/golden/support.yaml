@@ -1,0 +1,72 @@
+domain: support
+items:
+  - id: support_01
+    template: support_01
+    question: "How many support tickets are currently open or pending?"
+    sql: "SELECT COUNT(*) AS open_tickets FROM support_tickets WHERE status IN ('open', 'pending')"
+    difficulty: easy
+    tags: [open_tickets, status]
+
+  - id: support_02
+    template: support_02
+    question: "How many support tickets were opened in the last 30 days?"
+    sql: "SELECT COUNT(*) AS tickets_last_30_days FROM support_tickets WHERE created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '30 days'"
+    difficulty: easy
+    tags: [tickets, time_window]
+
+  - id: support_03
+    template: support_03
+    question: "How many tickets have no support agent assigned yet, broken down by priority?"
+    sql: "SELECT priority, COUNT(*) AS unassigned_tickets FROM support_tickets WHERE assigned_agent_id IS NULL GROUP BY priority ORDER BY priority"
+    difficulty: medium
+    tags: [unassigned, priority]
+
+  - id: support_04
+    template: support_04
+    question: "For each support team, what is the average customer satisfaction score? Count each ticket's score under the team of the agent assigned to that ticket."
+    sql: "SELECT a.team AS support_team, ROUND(CAST(AVG(c.score) AS DECIMAL), 2) AS avg_csat FROM csat_surveys AS c JOIN support_tickets AS t ON t.id = c.ticket_id JOIN support_agents AS a ON a.id = t.assigned_agent_id GROUP BY a.team ORDER BY a.team"
+    difficulty: medium
+    tags: [csat, support_team]
+
+  - id: support_05
+    template: support_05
+    question: "How many support tickets were opened in the last 30 days, split by category?"
+    sql: "SELECT category, COUNT(*) AS tickets FROM support_tickets WHERE created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '30 days' GROUP BY category ORDER BY category"
+    difficulty: medium
+    tags: [category, time_window]
+
+  - id: support_06
+    template: support_06
+    question: "For tickets that have been resolved or closed, what is the average number of hours from opening to resolution, for each priority level?"
+    sql: "SELECT t.priority, ROUND(CAST(AVG(EXTRACT(EPOCH FROM (t.resolved_at - t.created_at)) / 3600.0) AS DECIMAL), 1) AS avg_hours FROM support_tickets AS t WHERE t.status IN ('resolved', 'closed') AND t.resolved_at IS NOT NULL GROUP BY t.priority ORDER BY t.priority"
+    difficulty: medium
+    tags: [resolution_time, priority]
+
+  - id: support_07
+    template: support_07
+    question: "Which customers have 5 or more open tickets (open or pending) right now? Show each customer's name and its number of open tickets."
+    sql: "SELECT o.name AS customer_name, COUNT(*) AS open_tickets FROM support_tickets AS t JOIN organizations AS o ON o.id = t.org_id WHERE t.status IN ('open', 'pending') GROUP BY o.id, o.name HAVING COUNT(*) >= 5 ORDER BY open_tickets DESC, o.id"
+    difficulty: hard
+    tags: [customers, open_tickets]
+    order_matters: false
+
+  - id: support_08
+    template: support_08
+    question: "For each support team, what percentage of satisfaction surveys gave a score of 4 or 5? Count each ticket's survey under the team of the agent assigned to that ticket."
+    sql: "SELECT a.team AS support_team, ROUND(100.0 * SUM(CASE WHEN c.score >= 4 THEN 1 ELSE 0 END) / COUNT(*), 1) AS pct_4_or_5 FROM csat_surveys AS c JOIN support_tickets AS t ON t.id = c.ticket_id JOIN support_agents AS a ON a.id = t.assigned_agent_id GROUP BY a.team ORDER BY a.team"
+    difficulty: hard
+    tags: [csat, ratio]
+
+  - id: support_09
+    template: support_01
+    question: "Right now, how many tickets are in an open or pending state?"
+    sql: "SELECT COUNT(*) AS open_tickets FROM support_tickets WHERE status IN ('open', 'pending')"
+    difficulty: easy
+    tags: [open_tickets, status]
+
+  - id: support_10
+    template: support_02
+    question: "How many support requests came in over the past 30 days?"
+    sql: "SELECT COUNT(*) AS tickets_last_30_days FROM support_tickets WHERE created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '30 days'"
+    difficulty: easy
+    tags: [tickets, time_window]

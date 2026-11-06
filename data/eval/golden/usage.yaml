@@ -1,0 +1,73 @@
+domain: usage
+items:
+  - id: usage_01
+    template: usage_01
+    question: "How many active users did we have in the last 7 days, meaning users with at least one successful login?"
+    sql: "SELECT COUNT(DISTINCT user_id) AS active_users FROM login_events WHERE success = TRUE AND occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - INTERVAL '7 days'"
+    difficulty: easy
+    tags: [active_users, time_window]
+
+  - id: usage_02
+    template: usage_02
+    question: "How many customer companies are based in the United States?"
+    sql: "SELECT COUNT(*) AS customers_us FROM organizations WHERE country = 'US'"
+    difficulty: easy
+    tags: [customers, country]
+
+  - id: usage_03
+    template: usage_03
+    question: "How many users do we have in each role?"
+    sql: "SELECT role, COUNT(*) AS users FROM users GROUP BY role ORDER BY role"
+    difficulty: medium
+    tags: [users, grouping]
+
+  - id: usage_04
+    template: usage_04
+    question: "How many API keys were revoked in the last 30 days?"
+    sql: "SELECT COUNT(*) AS revoked_api_keys FROM api_keys WHERE revoked_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - INTERVAL '30 days'"
+    difficulty: medium
+    tags: [api_keys, time_window]
+
+  - id: usage_05
+    template: usage_05
+    question: "How many successful logins were there in the last 7 days, broken down by the country each login came from?"
+    sql: "SELECT ip_country AS country, COUNT(*) AS successful_logins FROM login_events WHERE success = TRUE AND occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - INTERVAL '7 days' GROUP BY ip_country ORDER BY ip_country"
+    difficulty: medium
+    tags: [logins, time_window]
+
+  - id: usage_06
+    template: usage_06
+    question: "For each kind of notification, how many were sent and what percentage of them have been read?"
+    sql: "SELECT kind, COUNT(*) AS sent, ROUND(100.0 * COUNT(read_at) / COUNT(*), 1) AS read_pct FROM notifications GROUP BY kind ORDER BY kind"
+    difficulty: medium
+    tags: [notifications, read_rate]
+
+  - id: usage_07
+    template: usage_07
+    question: "Which 5 customers had the highest percentage of failed API requests over the 7 days up to and including today?"
+    sql: "SELECT o.name AS org_name, ROUND(100.0 * SUM(r.error_count) / SUM(r.request_count), 2) AS error_rate_pct FROM api_requests_daily AS r JOIN api_keys AS k ON k.id = r.api_key_id JOIN organizations AS o ON o.id = k.org_id WHERE r.request_date >= DATE '2026-10-30' AND r.request_date <= DATE '2026-11-05' GROUP BY o.id, o.name ORDER BY error_rate_pct DESC, o.id LIMIT 5"
+    difficulty: hard
+    tags: [api_errors, ratio]
+    order_matters: false
+
+  - id: usage_08
+    template: usage_08
+    question: "For each feature key, what percentage of all organizations used that feature at least once in the last 30 days, highest percentage first?"
+    sql: "WITH total AS (SELECT COUNT(*) AS n FROM organizations), used AS (SELECT feature_id, COUNT(DISTINCT org_id) AS orgs FROM feature_usage_daily WHERE usage_date >= DATE '2026-10-07' AND usage_date <= DATE '2026-11-05' AND event_count > 0 GROUP BY feature_id) SELECT f.key AS feature_key, ROUND(100.0 * COALESCE(u.orgs, 0) / t.n, 1) AS pct_organizations FROM features AS f CROSS JOIN total AS t LEFT JOIN used AS u ON u.feature_id = f.id ORDER BY pct_organizations DESC, f.key"
+    difficulty: hard
+    tags: [feature_adoption, subquery]
+    order_matters: false
+
+  - id: usage_09
+    template: usage_01
+    question: "How many users signed in successfully at least once during the past week?"
+    sql: "SELECT COUNT(DISTINCT user_id) AS active_users FROM login_events WHERE success = TRUE AND occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - INTERVAL '7 days'"
+    difficulty: easy
+    tags: [active_users, time_window]
+
+  - id: usage_10
+    template: usage_02
+    question: "How many of our customers are located in the US?"
+    sql: "SELECT COUNT(*) AS customers_us FROM organizations WHERE country = 'US'"
+    difficulty: easy
+    tags: [customers, country]

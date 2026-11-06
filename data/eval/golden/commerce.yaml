@@ -1,0 +1,72 @@
+domain: commerce
+items:
+  - id: commerce_01
+    template: commerce_01
+    question: "How much revenue have we collected in total, in dollars?"
+    sql: "SELECT SUM(amount_cents) / 100.0 AS revenue_dollars FROM payments WHERE status = 'succeeded'"
+    difficulty: easy
+    tags: [revenue, dollars]
+
+  - id: commerce_02
+    template: commerce_02
+    question: "How many orders are there in each status?"
+    sql: "SELECT status, COUNT(*) AS order_count FROM orders GROUP BY status ORDER BY status"
+    difficulty: medium
+    tags: [orders, status_counts]
+
+  - id: commerce_03
+    template: commerce_03
+    question: "How much revenue have we collected so far this month, in dollars?"
+    sql: "SELECT SUM(amount_cents) / 100.0 AS revenue_dollars FROM payments WHERE status = 'succeeded' AND paid_at AT TIME ZONE 'UTC' >= date_trunc('month', TIMESTAMPTZ '2026-11-05 12:00:00+00' AT TIME ZONE 'UTC') AND paid_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00'"
+    difficulty: easy
+    tags: [revenue, time_window]
+
+  - id: commerce_04
+    template: commerce_04
+    question: "How many refunds were issued in the last 30 days?"
+    sql: "SELECT COUNT(*) AS refund_count FROM refunds WHERE refunded_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '30 days' AND refunded_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00'"
+    difficulty: easy
+    tags: [refunds, time_window]
+
+  - id: commerce_05
+    template: commerce_05
+    question: "What percentage of the revenue we have collected, in dollars, comes from invoices rather than one-off orders?"
+    sql: "SELECT ROUND(100.0 * SUM(CASE WHEN invoice_id IS NOT NULL THEN amount_cents ELSE 0 END) / SUM(amount_cents), 1) AS invoice_share_pct FROM payments WHERE status = 'succeeded'"
+    difficulty: hard
+    tags: [revenue, invoices, ratio]
+
+  - id: commerce_06
+    template: commerce_06
+    question: "For each payment method, what percentage of payment attempts failed?"
+    sql: "SELECT method, ROUND(100.0 * SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) / COUNT(*), 1) AS failure_pct FROM payments GROUP BY method ORDER BY method"
+    difficulty: hard
+    tags: [payments, failure_rate, ratio]
+
+  - id: commerce_07
+    template: commerce_07
+    question: "How many refunds did we issue for each refund reason, and how many dollars did each reason cost us?"
+    sql: "SELECT reason, COUNT(*) AS refund_count, SUM(amount_cents) / 100.0 AS refunded_dollars FROM refunds GROUP BY reason ORDER BY reason"
+    difficulty: medium
+    tags: [refunds, grouping]
+
+  - id: commerce_08
+    template: commerce_08
+    question: "Which five products sold the most units in orders placed in the last 90 days, counting only orders that are still paid (not refunded or canceled)?"
+    sql: "SELECT p.name AS product_name, SUM(oi.quantity) AS units_sold FROM order_items oi JOIN orders o ON o.id = oi.order_id JOIN products p ON p.id = oi.product_id WHERE o.status = 'paid' AND o.created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '90 days' AND o.created_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00' GROUP BY p.id, p.name ORDER BY units_sold DESC, p.id LIMIT 5"
+    difficulty: medium
+    tags: [products, ranking, time_window]
+    order_matters: false
+
+  - id: commerce_09
+    template: commerce_01
+    question: "Across all time, what is the total dollar amount of money we have taken in from successful payments?"
+    sql: "SELECT SUM(amount_cents) / 100.0 AS revenue_dollars FROM payments WHERE status = 'succeeded'"
+    difficulty: easy
+    tags: [revenue, dollars]
+
+  - id: commerce_10
+    template: commerce_02
+    question: "Give me a count of our orders broken down by their status."
+    sql: "SELECT status, COUNT(*) AS order_count FROM orders GROUP BY status ORDER BY status"
+    difficulty: medium
+    tags: [orders, status_counts]

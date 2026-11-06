@@ -1,0 +1,72 @@
+domain: subscriptions
+items:
+  - id: subscriptions_01
+    template: subscriptions_01
+    question: "How many customers have an active subscription right now?"
+    sql: "SELECT COUNT(DISTINCT org_id) AS active_customers FROM subscriptions WHERE status = 'active'"
+    difficulty: easy
+    tags: [customers, active_subscriptions]
+
+  - id: subscriptions_02
+    template: subscriptions_02
+    question: "What is our monthly recurring revenue, in dollars?"
+    sql: "SELECT SUM(mrr_cents) / 100.0 AS mrr_dollars FROM subscriptions WHERE status IN ('active', 'past_due')"
+    difficulty: easy
+    tags: [mrr]
+
+  - id: subscriptions_03
+    template: subscriptions_03
+    question: "How much monthly recurring revenue, in dollars, does each plan tier bring in?"
+    sql: "SELECT plan_tier, SUM(mrr_cents) / 100.0 AS mrr_dollars FROM subscriptions WHERE status IN ('active', 'past_due') GROUP BY plan_tier ORDER BY plan_tier"
+    difficulty: medium
+    tags: [mrr, plan_tier]
+
+  - id: subscriptions_04
+    template: subscriptions_04
+    question: "How many customers canceled their subscription in the last 30 days?"
+    sql: "SELECT COUNT(DISTINCT org_id) AS churned_customers FROM subscriptions WHERE status = 'canceled' AND canceled_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '30 days' AND canceled_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00'"
+    difficulty: medium
+    tags: [churn, time_window]
+
+  - id: subscriptions_05
+    template: subscriptions_05
+    question: "How many plan upgrades and downgrades happened in the last 90 days? Give one row per change type (upgraded, downgraded) with the number of events."
+    sql: "SELECT event_type, COUNT(*) AS events FROM subscription_events WHERE event_type IN ('upgraded', 'downgraded') AND occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '90 days' AND occurred_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00' GROUP BY event_type ORDER BY event_type"
+    difficulty: medium
+    tags: [plan_changes, time_window]
+
+  - id: subscriptions_06
+    template: subscriptions_06
+    question: "Which three discount codes have been redeemed the most times?"
+    sql: "SELECT c.code, COUNT(r.id) AS redemptions FROM coupons AS c JOIN coupon_redemptions AS r ON r.coupon_id = c.id GROUP BY c.code ORDER BY redemptions DESC, c.code LIMIT 3"
+    difficulty: medium
+    tags: [coupons, ranking]
+    order_matters: false
+
+  - id: subscriptions_07
+    template: subscriptions_07
+    question: "What percentage of our monthly recurring revenue comes from enterprise plans?"
+    sql: "SELECT ROUND(100.0 * SUM(CASE WHEN plan_tier = 'enterprise' THEN mrr_cents ELSE 0 END) / SUM(mrr_cents), 2) AS enterprise_mrr_percent FROM subscriptions WHERE status IN ('active', 'past_due')"
+    difficulty: hard
+    tags: [mrr, ratio]
+
+  - id: subscriptions_08
+    template: subscriptions_08
+    question: "What percentage of invoices issued in the last 90 days are still unpaid?"
+    sql: "SELECT ROUND(100.0 * SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) / COUNT(*), 2) AS unpaid_invoice_percent FROM invoices WHERE issued_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '90 days' AND issued_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00'"
+    difficulty: hard
+    tags: [invoices, ratio, time_window]
+
+  - id: subscriptions_09
+    template: subscriptions_01
+    question: "Can you tell me how many customers currently hold an active subscription?"
+    sql: "SELECT COUNT(DISTINCT org_id) AS active_customers FROM subscriptions WHERE status = 'active'"
+    difficulty: easy
+    tags: [customers, active_subscriptions]
+
+  - id: subscriptions_10
+    template: subscriptions_02
+    question: "Give me our current monthly recurring revenue in dollars."
+    sql: "SELECT SUM(mrr_cents) / 100.0 AS mrr_dollars FROM subscriptions WHERE status IN ('active', 'past_due')"
+    difficulty: easy
+    tags: [mrr]

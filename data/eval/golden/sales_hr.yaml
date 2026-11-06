@@ -1,0 +1,72 @@
+domain: sales_hr
+items:
+  - id: sales_hr_01
+    template: sales_hr_01
+    question: "How many people are on our current staff?"
+    sql: "SELECT COUNT(*) AS current_staff FROM employees WHERE terminated_at IS NULL"
+    difficulty: easy
+    tags: [headcount]
+
+  - id: sales_hr_02
+    template: sales_hr_02
+    question: "Of the deals we closed (won or lost) in the last 12 months, what percentage did we win?"
+    sql: "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE stage = 'won') / COUNT(*), 1) AS win_rate_percent FROM opportunities WHERE stage IN ('won', 'lost') AND closed_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '12 months'"
+    difficulty: hard
+    tags: [win_rate, time_window]
+
+  - id: sales_hr_03
+    template: sales_hr_03
+    question: "What is the total headcount capacity across all of our offices?"
+    sql: "SELECT SUM(headcount_capacity) AS total_capacity FROM office_locations"
+    difficulty: easy
+    tags: [offices]
+
+  - id: sales_hr_04
+    template: sales_hr_04
+    question: "How many expense claims from the last 90 days are still waiting for a decision?"
+    sql: "SELECT COUNT(*) AS waiting_claims FROM expense_reports WHERE status = 'submitted' AND submitted_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '90 days'"
+    difficulty: easy
+    tags: [expenses, time_window]
+
+  - id: sales_hr_05
+    template: sales_hr_05
+    question: "For each marketing channel, what percentage of the leads its campaigns generated became customers?"
+    sql: "SELECT c.channel, ROUND(100.0 * COUNT(*) FILTER (WHERE l.status = 'converted') / COUNT(*), 1) AS conversion_percent FROM leads AS l JOIN campaigns AS c ON c.id = l.campaign_id GROUP BY c.channel ORDER BY c.channel"
+    difficulty: medium
+    tags: [lead_conversion, campaigns]
+
+  - id: sales_hr_06
+    template: sales_hr_06
+    question: "How many deals did each sales region win in the last 180 days, and what was the total value of those wins in dollars?"
+    sql: "SELECT s.region, COUNT(*) AS won_deals, SUM(o.amount_cents) / 100.0 AS won_value_dollars FROM opportunities AS o JOIN sales_reps AS s ON s.id = o.rep_id WHERE o.stage = 'won' AND o.closed_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '180 days' GROUP BY s.region ORDER BY s.region"
+    difficulty: medium
+    tags: [won_deals, time_window]
+
+  - id: sales_hr_07
+    template: sales_hr_07
+    question: "Which two marketing campaigns have received the most email opens so far? Most opens first."
+    sql: "SELECT c.name AS campaign, COUNT(*) AS opens FROM email_events AS e JOIN campaigns AS c ON c.id = e.campaign_id WHERE e.event_type = 'opened' GROUP BY c.id, c.name ORDER BY opens DESC, c.id LIMIT 2"
+    difficulty: medium
+    tags: [email_engagement, ranking]
+    order_matters: true
+
+  - id: sales_hr_08
+    template: sales_hr_08
+    question: "How many current employees does each department have?"
+    sql: "SELECT d.name AS department, COUNT(e.id) AS current_staff FROM departments AS d LEFT JOIN employees AS e ON e.department_id = d.id AND e.terminated_at IS NULL GROUP BY d.id, d.name ORDER BY d.name"
+    difficulty: medium
+    tags: [headcount, grouping]
+
+  - id: sales_hr_09
+    template: sales_hr_01
+    question: "Counting only people who have not left the company, how many employees do we have right now?"
+    sql: "SELECT COUNT(*) AS current_staff FROM employees WHERE terminated_at IS NULL"
+    difficulty: easy
+    tags: [headcount]
+
+  - id: sales_hr_10
+    template: sales_hr_02
+    question: "Of the deals that reached a final result, won or lost, in the last 12 months, what percentage were wins?"
+    sql: "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE stage = 'won') / COUNT(*), 1) AS win_rate_percent FROM opportunities WHERE stage IN ('won', 'lost') AND closed_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '12 months'"
+    difficulty: hard
+    tags: [win_rate, time_window]
