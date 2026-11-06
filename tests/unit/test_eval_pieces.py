@@ -170,9 +170,31 @@ def test_dev_test_split_is_frozen_and_keeps_paraphrases_together():
     for item in items:
         sides.setdefault(item.template, set()).add(split_of(item.template))
     assert all(len(s) == 1 for s in sides.values())
-    test_templates = sorted(t for t in sides if split_of(t) == "test")
-    # Frozen on 2026-11-07. If this fails, someone changed the split rule or renamed a template.
-    assert len(test_templates) == 14 and len(sides) - len(test_templates) == 26
+    # Frozen on 2026-11-07: the sides of the original ids (numbers 1-10) never change.
+    frozen_test = {
+        "commerce_01",
+        "commerce_06",
+        "commerce_10",
+        "sales_hr_01",
+        "sales_hr_04",
+        "sales_hr_06",
+        "sales_hr_09",
+        "sales_hr_10",
+        "subscriptions_04",
+        "subscriptions_05",
+        "subscriptions_06",
+        "subscriptions_08",
+        "support_06",
+        "support_09",
+        "support_10",
+        "usage_01",
+        "usage_03",
+        "usage_04",
+        "usage_07",
+    }
+    for template in sides:
+        if int(template.rsplit("_", 1)[1]) <= 10:
+            assert (split_of(template) == "test") == (template in frozen_test), template
 
 
 def test_columns_may_come_in_any_order():

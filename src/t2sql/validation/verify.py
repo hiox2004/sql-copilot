@@ -110,3 +110,14 @@ def repair_hint(
     for name in used:
         lines.append(f"{name} columns: {', '.join(visible[name])}")
     return "\n".join(lines)
+
+
+def tables_in_sql(sql: str, sqlglot_dialect: str, known: Collection[str]) -> list[str]:
+    """Known tables a query reads, in order of first use (CTE names excluded)."""
+    try:
+        tree = sqlglot.parse_one(sql, read=sqlglot_dialect)
+    except sqlglot.errors.SqlglotError:
+        return []
+    ctes = {c.alias_or_name.lower() for c in tree.find_all(exp.CTE)}
+    names = (t.name.lower() for t in tree.find_all(exp.Table) if t.name)
+    return [n for n in dict.fromkeys(names) if n in set(known) and n not in ctes]

@@ -22,7 +22,7 @@ from t2sql.generation.prompt import build_messages
 from t2sql.graph.repair import MAX_RETRIES, generate_with_repair
 from t2sql.retrieval.context import render_context
 from t2sql.validation.executor import QueryTimeout, run_guarded
-from t2sql.validation.verify import repair_hint, verify_sql
+from t2sql.validation.verify import repair_hint, tables_in_sql, verify_sql
 
 MAX_ANSWER_ROWS = 200  # rows returned to the caller; the query itself is already LIMIT-capped
 
@@ -81,7 +81,6 @@ def answer_question(
         seconds=round(outcome.seconds, 2),
     )
     data = outcome.data or {}
-    answer.tables_used = [str(t) for t in data.get("tables_used", [])][:8]
     answer.assumptions = [str(a) for a in data.get("assumptions", [])][:3]
     if not outcome.ok or outcome.sql is None:
         last = outcome.attempts[-1].error if outcome.attempts else "no answer"
@@ -98,6 +97,7 @@ def answer_question(
         answer.error = f"The database rejected the query: {str(exc).strip().splitlines()[0][:150]}"
         return answer
     answer.ok, answer.sql = True, outcome.sql
+    answer.tables_used = tables_in_sql(outcome.sql, dialect.sqlglot_name, dictionary.tables)[:8]
     answer.columns = list(result.columns)
     answer.rows = [list(r) for r in result.rows[:MAX_ANSWER_ROWS]]
     answer.truncated = len(result.rows) > MAX_ANSWER_ROWS

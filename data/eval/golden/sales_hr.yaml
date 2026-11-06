@@ -70,3 +70,146 @@ items:
     sql: "SELECT ROUND(100.0 * COUNT(*) FILTER (WHERE stage = 'won') / COUNT(*), 1) AS win_rate_percent FROM opportunities WHERE stage IN ('won', 'lost') AND closed_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '12 months'"
     difficulty: hard
     tags: [win_rate, time_window]
+
+  - id: sales_hr_11
+    template: sales_hr_11
+    question: "How many sales reps do we have in each region?"
+    sql: "SELECT region, COUNT(*) AS reps FROM sales_reps GROUP BY region ORDER BY region"
+    difficulty: easy
+    tags: [sales_team, grouping]
+
+  - id: sales_hr_12
+    template: sales_hr_12
+    question: "What percentage of our total office headcount capacity is in each country? Round to 1 decimal."
+    sql: "SELECT country, ROUND(100.0 * SUM(headcount_capacity) / (SELECT SUM(headcount_capacity) FROM office_locations), 1) AS capacity_percent FROM office_locations GROUP BY country ORDER BY country"
+    difficulty: medium
+    tags: [offices, ratio]
+
+  - id: sales_hr_13
+    template: sales_hr_13
+    question: "Which cost center does each department charge to?"
+    sql: "SELECT name AS department, cost_center FROM departments ORDER BY name"
+    difficulty: easy
+    tags: [departments, lookup]
+
+  - id: sales_hr_14
+    template: sales_hr_14
+    question: "How many marketing campaigns does each channel have?"
+    sql: "SELECT channel, COUNT(*) AS campaigns FROM campaigns GROUP BY channel ORDER BY channel"
+    difficulty: easy
+    tags: [campaigns, grouping]
+
+  - id: sales_hr_15
+    template: sales_hr_15
+    question: "What is the total budget in dollars of the marketing campaigns that started in 2026?"
+    sql: "SELECT SUM(budget_cents) / 100.0 AS total_budget_dollars FROM campaigns WHERE started_at >= TIMESTAMPTZ '2026-01-01 00:00:00+00'"
+    difficulty: easy
+    tags: [campaigns, budget]
+
+  - id: sales_hr_16
+    template: sales_hr_16
+    question: "How many expense claims were rejected in the last 365 days?"
+    sql: "SELECT COUNT(*) AS rejected_claims FROM expense_reports WHERE status = 'rejected' AND submitted_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '365 days'"
+    difficulty: easy
+    tags: [expenses, time_window]
+
+  - id: sales_hr_17
+    template: sales_hr_17
+    question: "For claims submitted in the last 60 days, what is the total amount in dollars for each expense category?"
+    sql: "SELECT category, SUM(amount_cents) / 100.0 AS total_dollars FROM expense_reports WHERE submitted_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '60 days' GROUP BY category ORDER BY category"
+    difficulty: medium
+    tags: [expenses, time_window, grouping]
+
+  - id: sales_hr_18
+    template: sales_hr_18
+    question: "Which sales reps won at least 3 deals in the last 365 days? Show each rep's id, region and number of wins, most wins first."
+    sql: "SELECT s.id AS rep_id, s.region, COUNT(*) AS wins FROM opportunities AS o JOIN sales_reps AS s ON s.id = o.rep_id WHERE o.stage = 'won' AND o.closed_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '365 days' GROUP BY s.id, s.region HAVING COUNT(*) >= 3 ORDER BY wins DESC, s.id"
+    difficulty: hard
+    tags: [won_deals, ranking, having]
+    order_matters: true
+
+  - id: sales_hr_19
+    template: sales_hr_19
+    question: "How many leads were created in each month of 2026 up to October?"
+    sql: "SELECT TO_CHAR(DATE_TRUNC('month', created_at AT TIME ZONE 'UTC'), 'YYYY-MM') AS month, COUNT(*) AS new_leads FROM leads WHERE created_at >= TIMESTAMPTZ '2026-01-01 00:00:00+00' AND created_at < TIMESTAMPTZ '2026-11-01 00:00:00+00' GROUP BY TO_CHAR(DATE_TRUNC('month', created_at AT TIME ZONE 'UTC'), 'YYYY-MM') ORDER BY month"
+    difficulty: medium
+    tags: [leads, monthly_trend]
+
+  - id: sales_hr_20
+    template: sales_hr_20
+    question: "Which 3 marketing campaigns have produced the most converted leads? Show the campaign name and the number of converted leads, with ties broken by name."
+    sql: "SELECT c.name AS campaign, COUNT(*) AS converted_leads FROM leads AS l JOIN campaigns AS c ON c.id = l.campaign_id WHERE l.status = 'converted' GROUP BY c.id, c.name ORDER BY converted_leads DESC, c.name LIMIT 3"
+    difficulty: medium
+    tags: [lead_conversion, ranking]
+    order_matters: true
+
+  - id: sales_hr_21
+    template: sales_hr_21
+    question: "For each marketing campaign, how many of its leads are still in the new stage? Include campaigns with none."
+    sql: "SELECT c.name AS campaign, COUNT(l.id) AS new_leads FROM campaigns AS c LEFT JOIN leads AS l ON l.campaign_id = c.id AND l.status = 'new' GROUP BY c.id, c.name ORDER BY c.name"
+    difficulty: medium
+    tags: [leads, campaigns, left_join]
+
+  - id: sales_hr_22
+    template: sales_hr_22
+    question: "How many deals are in each pipeline stage, and what is their combined expected value in dollars?"
+    sql: "SELECT stage, COUNT(*) AS deals, SUM(amount_cents) / 100.0 AS expected_dollars FROM opportunities GROUP BY stage ORDER BY stage"
+    difficulty: medium
+    tags: [pipeline, grouping]
+
+  - id: sales_hr_23
+    template: sales_hr_23
+    question: "How many email opens did each campaign channel receive in the last 365 days?"
+    sql: "SELECT c.channel, COUNT(*) AS opens FROM email_events AS e JOIN campaigns AS c ON c.id = e.campaign_id WHERE e.event_type = 'opened' AND e.occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '365 days' GROUP BY c.channel ORDER BY c.channel"
+    difficulty: medium
+    tags: [email_engagement, time_window]
+
+  - id: sales_hr_24
+    template: sales_hr_24
+    question: "How many employees were hired in the last 365 days in each department? Include departments with no hires."
+    sql: "SELECT d.name AS department, COUNT(e.id) AS new_hires FROM departments AS d LEFT JOIN employees AS e ON e.department_id = d.id AND e.hired_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '365 days' GROUP BY d.id, d.name ORDER BY d.name"
+    difficulty: medium
+    tags: [hiring, left_join, time_window]
+
+  - id: sales_hr_25
+    template: sales_hr_25
+    question: "What is the average expense claim in dollars for each department, for claims submitted in the last 180 days? Round to 2 decimals."
+    sql: "SELECT d.name AS department, ROUND(AVG(x.amount_cents) / 100.0, 2) AS avg_claim_dollars FROM expense_reports AS x JOIN employees AS e ON e.id = x.employee_id JOIN departments AS d ON d.id = e.department_id WHERE x.submitted_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '180 days' GROUP BY d.id, d.name ORDER BY d.name"
+    difficulty: hard
+    tags: [expenses, multi_join, time_window]
+
+  - id: sales_hr_26
+    template: sales_hr_26
+    question: "Which offices have more headcount capacity than the average office? Show city, country and capacity, largest first."
+    sql: "SELECT city, country, headcount_capacity FROM office_locations WHERE headcount_capacity > (SELECT AVG(headcount_capacity) FROM office_locations) ORDER BY headcount_capacity DESC, city"
+    difficulty: hard
+    tags: [offices, subquery]
+    order_matters: true
+
+  - id: sales_hr_27
+    template: sales_hr_27
+    question: "What was the average value in dollars of the deals each sales region won in the last 12 months?"
+    sql: "SELECT s.region, ROUND(AVG(o.amount_cents) / 100.0, 2) AS avg_won_dollars FROM opportunities AS o JOIN sales_reps AS s ON s.id = o.rep_id WHERE o.stage = 'won' AND o.closed_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '12 months' GROUP BY s.region ORDER BY s.region"
+    difficulty: hard
+    tags: [won_deals, averages, time_window]
+
+  - id: sales_hr_28
+    template: sales_hr_28
+    question: "Which marketing campaigns never had an email unsubscribe event?"
+    sql: "SELECT c.name AS campaign FROM campaigns AS c WHERE NOT EXISTS (SELECT 1 FROM email_events AS e WHERE e.campaign_id = c.id AND e.event_type = 'unsubscribed') ORDER BY c.name"
+    difficulty: hard
+    tags: [campaigns, anti_join]
+
+  - id: sales_hr_29
+    template: sales_hr_29
+    question: "For each sales region, which open deal (not yet won or lost) has the largest expected value? Show the region, deal id and value in dollars."
+    sql: "WITH ranked AS (SELECT s.region, o.id AS deal_id, o.amount_cents, ROW_NUMBER() OVER (PARTITION BY s.region ORDER BY o.amount_cents DESC, o.id) AS rn FROM opportunities AS o JOIN sales_reps AS s ON s.id = o.rep_id WHERE o.stage IN ('prospecting', 'proposal', 'negotiation')) SELECT region, deal_id, amount_cents / 100.0 AS value_dollars FROM ranked WHERE rn = 1 ORDER BY region"
+    difficulty: hard
+    tags: [pipeline, window_function, cte]
+
+  - id: sales_hr_30
+    template: sales_hr_30
+    question: "For each marketing campaign, how many leads created in the last 90 days are still in the new stage? Include campaigns with zero such leads."
+    sql: "SELECT c.id AS campaign_id, c.name AS campaign_name, COUNT(l.id) AS new_leads FROM campaigns AS c LEFT JOIN leads AS l ON l.campaign_id = c.id AND l.status = 'new' AND l.created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '90 days' AND l.created_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00' GROUP BY c.id, c.name ORDER BY c.id"
+    difficulty: medium
+    tags: [campaigns, leads, left_join]

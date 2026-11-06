@@ -70,3 +70,153 @@ items:
     sql: "SELECT SUM(mrr_cents) / 100.0 AS mrr_dollars FROM subscriptions WHERE status IN ('active', 'past_due')"
     difficulty: easy
     tags: [mrr]
+
+  - id: subscriptions_11
+    template: subscriptions_11
+    question: "How many subscriptions are in a free trial right now?"
+    sql: "SELECT COUNT(*) AS trialing_subscriptions FROM subscriptions WHERE status = 'trialing'"
+    difficulty: easy
+    tags: [trials, subscription_status]
+
+  - id: subscriptions_12
+    template: subscriptions_12
+    question: "How much MRR, in dollars, comes from past-due subscriptions?"
+    sql: "SELECT SUM(mrr_cents) / 100.0 AS past_due_mrr_dollars FROM subscriptions WHERE status = 'past_due'"
+    difficulty: easy
+    tags: [mrr, past_due]
+
+  - id: subscriptions_13
+    template: subscriptions_13
+    question: "How many invoices are still open, meaning issued but not yet paid?"
+    sql: "SELECT COUNT(*) AS open_invoices FROM invoices WHERE status = 'open'"
+    difficulty: easy
+    tags: [invoices, unpaid]
+
+  - id: subscriptions_14
+    template: subscriptions_14
+    question: "Which plans are offered to the public, and what do they cost per month in dollars? Sort by price, cheapest first."
+    sql: "SELECT name, monthly_price_cents / 100.0 AS monthly_price_dollars FROM plans WHERE is_public ORDER BY monthly_price_cents, name"
+    difficulty: easy
+    tags: [plans, pricing]
+    order_matters: true
+
+  - id: subscriptions_15
+    template: subscriptions_15
+    question: "For each coupon code, how many redemptions are left before its max_redemptions cap?"
+    sql: "SELECT c.code, c.max_redemptions - COUNT(r.id) AS remaining_redemptions FROM coupons AS c LEFT JOIN coupon_redemptions AS r ON r.coupon_id = c.id GROUP BY c.id, c.code, c.max_redemptions ORDER BY c.code"
+    difficulty: medium
+    tags: [coupons, cap, left_join]
+
+  - id: subscriptions_16
+    template: subscriptions_16
+    question: "How many subscriptions were reactivated after canceling in the last 90 days?"
+    sql: "SELECT COUNT(*) AS reactivations FROM subscription_events WHERE event_type = 'reactivated' AND occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '90 days' AND occurred_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00'"
+    difficulty: easy
+    tags: [reactivation, time_window]
+
+  - id: subscriptions_17
+    template: subscriptions_17
+    question: "What is the average monthly recurring revenue per active subscription, in dollars, for each plan tier?"
+    sql: "SELECT plan_tier, ROUND(AVG(mrr_cents) / 100.0, 2) AS avg_mrr_dollars FROM subscriptions WHERE status = 'active' GROUP BY plan_tier ORDER BY plan_tier"
+    difficulty: medium
+    tags: [mrr, averages, plan_tier]
+
+  - id: subscriptions_18
+    template: subscriptions_18
+    question: "How many payment attempts failed in the last 90 days, broken down by payment method?"
+    sql: "SELECT method, COUNT(*) AS failed_payments FROM payments WHERE status = 'failed' AND paid_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '90 days' AND paid_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00' GROUP BY method ORDER BY method"
+    difficulty: medium
+    tags: [payments, failures, time_window]
+
+  - id: subscriptions_19
+    template: subscriptions_19
+    question: "Which discount codes were redeemed in the last 60 days? Show how many redemptions each code got, most redeemed first."
+    sql: "SELECT c.code, COUNT(r.id) AS redemptions FROM coupon_redemptions AS r JOIN coupons AS c ON c.id = r.coupon_id WHERE r.redeemed_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '60 days' AND r.redeemed_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00' GROUP BY c.code ORDER BY redemptions DESC, c.code"
+    difficulty: medium
+    tags: [coupons, ranking, time_window]
+    order_matters: true
+
+  - id: subscriptions_20
+    template: subscriptions_20
+    question: "Which organizations canceled their subscription in the last 90 days? Show the organization name and the cancellation time, newest first."
+    sql: "SELECT o.name, s.canceled_at FROM subscriptions AS s JOIN organizations AS o ON o.id = s.org_id WHERE s.status = 'canceled' AND s.canceled_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '90 days' AND s.canceled_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00' ORDER BY s.canceled_at DESC, o.name"
+    difficulty: medium
+    tags: [churn, organizations, time_window]
+    order_matters: true
+
+  - id: subscriptions_21
+    template: subscriptions_21
+    question: "How much is still owed on open invoices, in dollars, for each plan tier?"
+    sql: "SELECT s.plan_tier, SUM(i.amount_cents) / 100.0 AS open_dollars FROM invoices AS i JOIN subscriptions AS s ON s.id = i.subscription_id WHERE i.status = 'open' GROUP BY s.plan_tier ORDER BY s.plan_tier"
+    difficulty: medium
+    tags: [invoices, unpaid, plan_tier]
+
+  - id: subscriptions_22
+    template: subscriptions_22
+    question: "For each plan tier, how many subscription history events of type payment_failed are there, across all time?"
+    sql: "SELECT s.plan_tier, COUNT(*) AS payment_failed_events FROM subscription_events AS e JOIN subscriptions AS s ON s.id = e.subscription_id WHERE e.event_type = 'payment_failed' GROUP BY s.plan_tier ORDER BY s.plan_tier"
+    difficulty: medium
+    tags: [payment_failed, plan_tier]
+
+  - id: subscriptions_23
+    template: subscriptions_23
+    question: "Which organizations are on a pro plan and currently in a free trial? List their names alphabetically."
+    sql: "SELECT o.name FROM subscriptions AS s JOIN organizations AS o ON o.id = s.org_id WHERE s.plan_tier = 'pro' AND s.status = 'trialing' ORDER BY o.name"
+    difficulty: medium
+    tags: [trials, organizations]
+    order_matters: true
+
+  - id: subscriptions_24
+    template: subscriptions_24
+    question: "In August, September and October 2026, how many invoices were issued each month?"
+    sql: "SELECT to_char(issued_at AT TIME ZONE 'UTC', 'YYYY-MM') AS issue_month, COUNT(*) AS invoices_issued FROM invoices WHERE issued_at >= TIMESTAMPTZ '2026-08-01 00:00:00+00' AND issued_at < TIMESTAMPTZ '2026-11-01 00:00:00+00' GROUP BY 1 ORDER BY 1"
+    difficulty: medium
+    tags: [invoices, monthly_trend, time_window]
+    order_matters: true
+
+  - id: subscriptions_25
+    template: subscriptions_25
+    question: "Which organizations have never redeemed a discount code but placed a paid order in the last 30 days? Give their names alphabetically."
+    sql: "SELECT o.name FROM organizations AS o WHERE EXISTS (SELECT 1 FROM orders AS ord WHERE ord.org_id = o.id AND ord.status = 'paid' AND ord.created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '30 days' AND ord.created_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00') AND NOT EXISTS (SELECT 1 FROM coupon_redemptions AS r WHERE r.org_id = o.id) ORDER BY o.name"
+    difficulty: hard
+    tags: [anti_join, coupons, orders]
+    order_matters: true
+
+  - id: subscriptions_26
+    template: subscriptions_26
+    question: "Which organizations upgraded their plan in the last 365 days and have a paid invoice issued after that upgrade? Give their names alphabetically."
+    sql: "SELECT DISTINCT o.name FROM subscription_events AS e JOIN subscriptions AS s ON s.id = e.subscription_id JOIN organizations AS o ON o.id = s.org_id WHERE e.event_type = 'upgraded' AND e.occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '365 days' AND e.occurred_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00' AND EXISTS (SELECT 1 FROM invoices AS i WHERE i.subscription_id = s.id AND i.status = 'paid' AND i.issued_at > e.occurred_at) ORDER BY o.name"
+    difficulty: hard
+    tags: [upgrades, invoices, organizations]
+
+  - id: subscriptions_27
+    template: subscriptions_27
+    question: "For each subscription with an event in the last 180 days, what was its latest event type and when did it happen? Newest first."
+    sql: "SELECT subscription_id, event_type, occurred_at FROM (SELECT subscription_id, event_type, occurred_at, ROW_NUMBER() OVER (PARTITION BY subscription_id ORDER BY occurred_at DESC, id DESC) AS rn FROM subscription_events WHERE occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '180 days' AND occurred_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00') AS latest WHERE rn = 1 ORDER BY occurred_at DESC, subscription_id"
+    difficulty: hard
+    tags: [window_function, subscription_history, time_window]
+    order_matters: true
+
+  - id: subscriptions_28
+    template: subscriptions_28
+    question: "For each plan tier, what percentage of invoices issued in the last 90 days have been paid?"
+    sql: "SELECT s.plan_tier, ROUND(100.0 * SUM(CASE WHEN i.status = 'paid' THEN 1 ELSE 0 END) / COUNT(*), 2) AS paid_percent FROM invoices AS i JOIN subscriptions AS s ON s.id = i.subscription_id WHERE i.issued_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '90 days' AND i.issued_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00' GROUP BY s.plan_tier ORDER BY s.plan_tier"
+    difficulty: hard
+    tags: [invoices, ratio, plan_tier, time_window]
+    order_matters: true
+
+  - id: subscriptions_29
+    template: subscriptions_29
+    question: "Which three organizations paid the most through invoices in the last 180 days? Count only succeeded payments and show the total in dollars, highest first."
+    sql: "SELECT o.name, ROUND(SUM(p.amount_cents) / 100.0, 2) AS paid_dollars FROM payments AS p JOIN invoices AS i ON i.id = p.invoice_id JOIN subscriptions AS s ON s.id = i.subscription_id JOIN organizations AS o ON o.id = s.org_id WHERE p.status = 'succeeded' AND p.paid_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '180 days' AND p.paid_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00' GROUP BY o.id, o.name ORDER BY paid_dollars DESC, o.name LIMIT 3"
+    difficulty: hard
+    tags: [revenue, invoices, ranking, joins]
+    order_matters: true
+
+  - id: subscriptions_30
+    template: subscriptions_30
+    question: "For each plan tier, what percent of all its subscriptions were canceled in the last 90 days?"
+    sql: "SELECT plan_tier, ROUND(100.0 * SUM(CASE WHEN status = 'canceled' AND canceled_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '90 days' AND canceled_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00' THEN 1 ELSE 0 END) / COUNT(*), 2) AS canceled_percent FROM subscriptions GROUP BY plan_tier ORDER BY plan_tier"
+    difficulty: hard
+    tags: [churn, ratio, plan_tier, time_window]
+    order_matters: true

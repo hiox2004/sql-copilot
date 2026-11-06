@@ -70,3 +70,148 @@ items:
     sql: "SELECT COUNT(*) AS tickets_last_30_days FROM support_tickets WHERE created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '30 days'"
     difficulty: easy
     tags: [tickets, time_window]
+
+  - id: support_11
+    template: support_11
+    question: "How many support agents are on each team?"
+    sql: "SELECT team, COUNT(*) AS agents FROM support_agents GROUP BY team ORDER BY team"
+    difficulty: easy
+    tags: [agents, team]
+
+  - id: support_12
+    template: support_12
+    question: "How many urgent-priority tickets are open or pending right now?"
+    sql: "SELECT COUNT(*) AS urgent_open_tickets FROM support_tickets WHERE priority = 'urgent' AND status IN ('open', 'pending')"
+    difficulty: easy
+    tags: [priority, open_tickets]
+
+  - id: support_13
+    template: support_13
+    question: "How many satisfaction surveys with a score of 1 were submitted since October 1, 2026?"
+    sql: "SELECT COUNT(*) AS one_star_surveys FROM csat_surveys WHERE score = 1 AND submitted_at >= TIMESTAMPTZ '2026-10-01 00:00:00+00' AND submitted_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00'"
+    difficulty: easy
+    tags: [csat, time_window]
+
+  - id: support_14
+    template: support_14
+    question: "How many messages inside support tickets were written by agents?"
+    sql: "SELECT COUNT(*) AS agent_messages FROM ticket_comments WHERE author_type = 'agent'"
+    difficulty: easy
+    tags: [ticket_comments, author]
+
+  - id: support_15
+    template: support_15
+    question: "List the ids of all billing team support agents, in ascending order."
+    sql: "SELECT id AS agent_id FROM support_agents WHERE team = 'billing' ORDER BY id"
+    difficulty: easy
+    tags: [agents, team]
+    order_matters: true
+
+  - id: support_16
+    template: support_16
+    question: "How many bug tickets were opened in the last 7 days?"
+    sql: "SELECT COUNT(*) AS bug_tickets_last_7_days FROM support_tickets WHERE category = 'bug' AND created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '7 days'"
+    difficulty: easy
+    tags: [tickets, category, time_window]
+
+  - id: support_17
+    template: support_17
+    question: "For each support team, how many tickets are currently open or pending with an assigned agent?"
+    sql: "SELECT a.team AS support_team, COUNT(*) AS open_tickets FROM support_tickets AS t JOIN support_agents AS a ON a.id = t.assigned_agent_id WHERE t.status IN ('open', 'pending') GROUP BY a.team ORDER BY a.team"
+    difficulty: medium
+    tags: [open_tickets, support_team]
+
+  - id: support_18
+    template: support_18
+    question: "Which support agents have resolved or closed more than 55 tickets? Show the agent id and the count, highest first."
+    sql: "SELECT assigned_agent_id AS agent_id, COUNT(*) AS resolved_tickets FROM support_tickets WHERE status IN ('resolved', 'closed') AND assigned_agent_id IS NOT NULL GROUP BY assigned_agent_id HAVING COUNT(*) > 55 ORDER BY resolved_tickets DESC, agent_id"
+    difficulty: medium
+    tags: [agents, having]
+    order_matters: true
+
+  - id: support_19
+    template: support_19
+    question: "What is the average customer satisfaction score for each ticket category? Round to two decimals."
+    sql: "SELECT t.category, ROUND(CAST(AVG(c.score) AS DECIMAL), 2) AS avg_csat FROM csat_surveys AS c JOIN support_tickets AS t ON t.id = c.ticket_id GROUP BY t.category ORDER BY t.category"
+    difficulty: medium
+    tags: [csat, category]
+
+  - id: support_20
+    template: support_20
+    question: "How many distinct users raised support tickets in the last 30 days, broken down by user role?"
+    sql: "SELECT u.role, COUNT(DISTINCT t.user_id) AS requesters FROM support_tickets AS t JOIN users AS u ON u.id = t.user_id WHERE t.created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '30 days' GROUP BY u.role ORDER BY u.role"
+    difficulty: medium
+    tags: [users, distinct_count, time_window]
+
+  - id: support_21
+    template: support_21
+    question: "How many resolved or closed tickets never received a satisfaction survey?"
+    sql: "SELECT COUNT(*) AS closed_without_survey FROM support_tickets AS t WHERE t.status IN ('resolved', 'closed') AND NOT EXISTS (SELECT 1 FROM csat_surveys AS c WHERE c.ticket_id = t.id)"
+    difficulty: medium
+    tags: [csat, anti_join]
+
+  - id: support_22
+    template: support_22
+    question: "For each ticket category, what percentage of tickets opened in the last 30 days were high or urgent priority? Round to one decimal place."
+    sql: "SELECT t.category, ROUND(100.0 * SUM(CASE WHEN t.priority IN ('high', 'urgent') THEN 1 ELSE 0 END) / COUNT(*), 1) AS pct_high_or_urgent FROM support_tickets AS t WHERE t.created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '30 days' GROUP BY t.category ORDER BY t.category"
+    difficulty: medium
+    tags: [ratio, priority, category]
+
+  - id: support_23
+    template: support_23
+    question: "Which support agents hired in 2026 have open or pending tickets? Show the agent id and the number of open tickets, most first."
+    sql: "SELECT a.id AS agent_id, COUNT(*) AS open_tickets FROM support_agents AS a JOIN support_tickets AS t ON t.assigned_agent_id = a.id WHERE a.hired_at >= TIMESTAMPTZ '2026-01-01 00:00:00+00' AND t.status IN ('open', 'pending') GROUP BY a.id ORDER BY open_tickets DESC, a.id"
+    difficulty: medium
+    tags: [agents, hire_date, open_tickets]
+    order_matters: true
+
+  - id: support_24
+    template: support_24
+    question: "How many tickets were resolved in October 2026, broken down by priority?"
+    sql: "SELECT priority, COUNT(*) AS tickets_resolved FROM support_tickets WHERE resolved_at >= TIMESTAMPTZ '2026-10-01 00:00:00+00' AND resolved_at < TIMESTAMPTZ '2026-11-01 00:00:00+00' GROUP BY priority ORDER BY priority"
+    difficulty: medium
+    tags: [resolution, priority, time_window]
+
+  - id: support_25
+    template: support_25
+    question: "How many support tickets have a customer message but no agent reply?"
+    sql: "SELECT COUNT(*) AS tickets_awaiting_agent_reply FROM support_tickets AS t WHERE EXISTS (SELECT 1 FROM ticket_comments AS c WHERE c.ticket_id = t.id AND c.author_type = 'user') AND NOT EXISTS (SELECT 1 FROM ticket_comments AS c WHERE c.ticket_id = t.id AND c.author_type = 'agent')"
+    difficulty: hard
+    tags: [anti_join, ticket_comments]
+
+  - id: support_26
+    template: support_26
+    question: "For tickets opened in the last 60 days, what is the average number of hours until the first agent reply, for each priority level? Round to one decimal place."
+    sql: "WITH first_reply AS (SELECT ticket_id, MIN(created_at) AS first_reply_at FROM ticket_comments WHERE author_type = 'agent' GROUP BY ticket_id) SELECT t.priority, ROUND(CAST(AVG(EXTRACT(EPOCH FROM (f.first_reply_at - t.created_at)) / 3600.0) AS DECIMAL), 1) AS avg_hours_to_first_reply FROM support_tickets AS t JOIN first_reply AS f ON f.ticket_id = t.id WHERE t.created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '60 days' GROUP BY t.priority ORDER BY t.priority"
+    difficulty: hard
+    tags: [cte, first_reply, resolution_time]
+
+  - id: support_27
+    template: support_27
+    question: "Which enterprise customers with an active subscription have an average CSAT score below 3.5 across their support tickets? Show the customer name and the average score, lowest first."
+    sql: "SELECT o.name AS customer_name, ROUND(CAST(AVG(c.score) AS DECIMAL), 2) AS avg_csat FROM organizations AS o JOIN subscriptions AS s ON s.org_id = o.id AND s.plan_tier = 'enterprise' AND s.status = 'active' JOIN support_tickets AS t ON t.org_id = o.id JOIN csat_surveys AS c ON c.ticket_id = t.id GROUP BY o.id, o.name HAVING AVG(c.score) < 3.5 ORDER BY avg_csat, customer_name, o.id"
+    difficulty: hard
+    tags: [csat, enterprise, having]
+    order_matters: true
+
+  - id: support_28
+    template: support_28
+    question: "How many support tickets opened in the last 30 days were raised by users with no successful login in the last 30 days?"
+    sql: "SELECT COUNT(*) AS tickets_from_inactive_users FROM support_tickets AS t WHERE t.created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '30 days' AND NOT EXISTS (SELECT 1 FROM login_events AS l WHERE l.user_id = t.user_id AND l.success AND l.occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '30 days')"
+    difficulty: hard
+    tags: [anti_join, login_events, time_window]
+
+  - id: support_29
+    template: support_29
+    question: "Which support agents resolved or closed more tickets than the average of their team's agents who have at least one resolved or closed ticket? Show the team, agent id and count, ordered by team then agent id."
+    sql: "WITH resolved AS (SELECT assigned_agent_id AS agent_id, COUNT(*) AS n FROM support_tickets WHERE status IN ('resolved', 'closed') AND assigned_agent_id IS NOT NULL GROUP BY assigned_agent_id), with_team AS (SELECT r.agent_id, a.team, r.n FROM resolved AS r JOIN support_agents AS a ON a.id = r.agent_id), team_avg AS (SELECT team, AVG(n) AS avg_n FROM with_team GROUP BY team) SELECT w.team, w.agent_id, w.n AS resolved_tickets FROM with_team AS w JOIN team_avg AS ta ON ta.team = w.team WHERE w.n > ta.avg_n ORDER BY w.team, w.agent_id"
+    difficulty: hard
+    tags: [cte, window_average, agents]
+    order_matters: true
+
+  - id: support_30
+    template: support_30
+    question: "For each support team, how many urgent tickets were opened in the last 90 days, and what percentage of them are still open or pending? Round the percentage to one decimal place."
+    sql: "WITH urgent AS (SELECT t.assigned_agent_id AS agent_id, t.status FROM support_tickets AS t WHERE t.priority = 'urgent' AND t.assigned_agent_id IS NOT NULL AND t.created_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - interval '90 days') SELECT a.team AS support_team, COUNT(*) AS urgent_tickets, ROUND(100.0 * SUM(CASE WHEN u.status IN ('open', 'pending') THEN 1 ELSE 0 END) / COUNT(*), 1) AS pct_still_open FROM urgent AS u JOIN support_agents AS a ON a.id = u.agent_id GROUP BY a.team ORDER BY a.team"
+    difficulty: hard
+    tags: [cte, ratio, urgent]

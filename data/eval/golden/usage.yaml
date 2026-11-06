@@ -71,3 +71,148 @@ items:
     sql: "SELECT COUNT(*) AS customers_us FROM organizations WHERE country = 'US'"
     difficulty: easy
     tags: [customers, country]
+
+  - id: usage_11
+    template: usage_11
+    question: "How many API keys are still active, meaning not revoked?"
+    sql: "SELECT COUNT(*) AS active_api_keys FROM api_keys WHERE revoked_at IS NULL"
+    difficulty: easy
+    tags: [api_keys, revoked]
+
+  - id: usage_12
+    template: usage_12
+    question: "How many audit log entries were recorded in October 2026?"
+    sql: "SELECT COUNT(*) AS audit_entries FROM audit_log WHERE occurred_at >= TIMESTAMPTZ '2026-10-01 00:00:00+00' AND occurred_at < TIMESTAMPTZ '2026-11-01 00:00:00+00'"
+    difficulty: easy
+    tags: [audit, time_window]
+
+  - id: usage_13
+    template: usage_13
+    question: "How many notifications have not been read yet?"
+    sql: "SELECT COUNT(*) AS unread_notifications FROM notifications WHERE read_at IS NULL"
+    difficulty: easy
+    tags: [notifications, unread]
+
+  - id: usage_14
+    template: usage_14
+    question: "How many login attempts failed in the last 24 hours?"
+    sql: "SELECT COUNT(*) AS failed_logins FROM login_events WHERE success = FALSE AND occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - INTERVAL '24 hours'"
+    difficulty: easy
+    tags: [logins, failures]
+
+  - id: usage_15
+    template: usage_15
+    question: "Across all customers, how many separate organizations used at least one product feature in the last 30 days?"
+    sql: "SELECT COUNT(DISTINCT org_id) AS orgs_using_features FROM feature_usage_daily WHERE usage_date >= DATE '2026-10-07' AND usage_date <= DATE '2026-11-05' AND event_count > 0"
+    difficulty: easy
+    tags: [feature_adoption, distinct_count]
+
+  - id: usage_16
+    template: usage_16
+    question: "How many feature flags are switched on?"
+    sql: "SELECT COUNT(*) AS flags_on FROM feature_flags WHERE enabled = TRUE"
+    difficulty: easy
+    tags: [feature_flags]
+
+  - id: usage_17
+    template: usage_17
+    question: "For each day in the 7 days up to and including today, how many API requests were made and how many of them failed?"
+    sql: "SELECT request_date, SUM(request_count) AS requests, SUM(error_count) AS failed_requests FROM api_requests_daily WHERE request_date >= DATE '2026-10-30' AND request_date <= DATE '2026-11-05' GROUP BY request_date ORDER BY request_date"
+    difficulty: medium
+    tags: [api_traffic, daily]
+
+  - id: usage_18
+    template: usage_18
+    question: "Which 5 organizations made the most API requests in October 2026?"
+    sql: "SELECT o.name AS org_name, SUM(r.request_count) AS total_requests FROM api_requests_daily AS r JOIN api_keys AS k ON k.id = r.api_key_id JOIN organizations AS o ON o.id = k.org_id WHERE r.request_date >= DATE '2026-10-01' AND r.request_date <= DATE '2026-10-31' GROUP BY o.id, o.name ORDER BY total_requests DESC, o.id LIMIT 5"
+    difficulty: medium
+    tags: [api_traffic, top_n]
+    order_matters: true
+
+  - id: usage_19
+    template: usage_19
+    question: "How many distinct organizations had at least one API key revoked in the last 90 days?"
+    sql: "SELECT COUNT(DISTINCT k.org_id) AS orgs_with_revoked_keys FROM api_keys AS k WHERE k.revoked_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - INTERVAL '90 days' AND k.revoked_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00'"
+    difficulty: medium
+    tags: [api_keys, revoked, distinct_count]
+
+  - id: usage_20
+    template: usage_20
+    question: "For each notification kind, what is the average number of hours from sending to reading, counting only notifications that were read? Round to 2 decimals."
+    sql: "SELECT kind, ROUND(AVG(EXTRACT(EPOCH FROM (read_at - sent_at)) / 3600.0), 2) AS avg_hours_to_read FROM notifications WHERE read_at IS NOT NULL GROUP BY kind ORDER BY kind"
+    difficulty: medium
+    tags: [notifications, durations]
+
+  - id: usage_21
+    template: usage_21
+    question: "Which organizations have at least 7 users? Show each one's user count, largest first."
+    sql: "SELECT o.name AS org_name, COUNT(*) AS user_count FROM users AS u JOIN organizations AS o ON o.id = u.org_id GROUP BY o.id, o.name HAVING COUNT(*) >= 7 ORDER BY user_count DESC, o.id"
+    difficulty: medium
+    tags: [users, having]
+    order_matters: true
+
+  - id: usage_22
+    template: usage_22
+    question: "How many failed login attempts were there in each country in the last 30 days, highest first?"
+    sql: "SELECT ip_country AS country, COUNT(*) AS failed_logins FROM login_events WHERE success = FALSE AND occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - INTERVAL '30 days' AND occurred_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00' GROUP BY ip_country ORDER BY failed_logins DESC, ip_country"
+    difficulty: medium
+    tags: [logins, failures, grouping]
+    order_matters: true
+
+  - id: usage_23
+    template: usage_23
+    question: "How many successful logins happened in each calendar month from August to October 2026, in UTC?"
+    sql: "SELECT TO_CHAR(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM') AS month, COUNT(*) AS successful_logins FROM login_events WHERE success = TRUE AND occurred_at >= TIMESTAMPTZ '2026-08-01 00:00:00+00' AND occurred_at < TIMESTAMPTZ '2026-11-01 00:00:00+00' GROUP BY month ORDER BY month"
+    difficulty: medium
+    tags: [logins, monthly]
+
+  - id: usage_24
+    template: usage_24
+    question: "How many feature usage events did each feature category record in the last 30 days, highest first?"
+    sql: "SELECT f.category AS category, SUM(u.event_count) AS events FROM feature_usage_daily AS u JOIN features AS f ON f.id = u.feature_id WHERE u.usage_date >= DATE '2026-10-07' AND u.usage_date <= DATE '2026-11-05' GROUP BY f.category ORDER BY events DESC, f.category"
+    difficulty: medium
+    tags: [feature_adoption, grouping]
+    order_matters: true
+
+  - id: usage_25
+    template: usage_25
+    question: "Which product features were used by fewer than 53 organizations in the last 30 days? Show each feature key with its organization count, fewest first."
+    sql: "SELECT f.key AS feature_key, COUNT(DISTINCT u.org_id) AS orgs FROM features AS f JOIN feature_usage_daily AS u ON u.feature_id = f.id WHERE u.usage_date >= DATE '2026-10-07' AND u.usage_date <= DATE '2026-11-05' AND u.event_count > 0 GROUP BY f.key HAVING COUNT(DISTINCT u.org_id) < 53 ORDER BY orgs, f.key"
+    difficulty: hard
+    tags: [feature_adoption, anti_join]
+
+  - id: usage_26
+    template: usage_26
+    question: "Which organizations have more than half of their users who have never logged in? Show the share, highest first."
+    sql: "SELECT o.name AS org_name, ROUND(100.0 * SUM(CASE WHEN u.last_login_at IS NULL THEN 1 ELSE 0 END) / COUNT(*), 1) AS never_logged_in_pct FROM users AS u JOIN organizations AS o ON o.id = u.org_id GROUP BY o.id, o.name HAVING SUM(CASE WHEN u.last_login_at IS NULL THEN 1 ELSE 0 END) * 2 > COUNT(*) ORDER BY never_logged_in_pct DESC, o.id"
+    difficulty: hard
+    tags: [users, ratio, having]
+    order_matters: true
+
+  - id: usage_27
+    template: usage_27
+    question: "How many organizations had no admin log in successfully in the last 30 days?"
+    sql: "SELECT COUNT(*) AS orgs_without_active_admin FROM organizations AS o WHERE NOT EXISTS (SELECT 1 FROM users AS u JOIN login_events AS l ON l.user_id = u.id WHERE u.org_id = o.id AND u.role = 'admin' AND l.success = TRUE AND l.occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - INTERVAL '30 days' AND l.occurred_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00')"
+    difficulty: medium
+    tags: [admins, logins, time_window, anti_join]
+
+  - id: usage_28
+    template: usage_28
+    question: "Which users logged in successfully in the last 7 days from a country other than their organization's country? Show the user id, the organization's country and the login country."
+    sql: "SELECT DISTINCT u.id AS user_id, o.country AS org_country, e.ip_country AS login_country FROM login_events AS e JOIN users AS u ON u.id = e.user_id JOIN organizations AS o ON o.id = u.org_id WHERE e.success = TRUE AND e.occurred_at > TIMESTAMPTZ '2026-11-05 12:00:00+00' - INTERVAL '7 days' AND e.occurred_at <= TIMESTAMPTZ '2026-11-05 12:00:00+00' AND e.ip_country <> o.country ORDER BY user_id, login_country"
+    difficulty: hard
+    tags: [logins, cross_country, distinct]
+
+  - id: usage_29
+    template: usage_29
+    question: "For each day from 2026-10-30 through 2026-11-04 (UTC), how many distinct users logged in successfully, and how much did that number change from the day before?"
+    sql: "SELECT day, active_users, active_users - prev_users AS change_vs_previous_day FROM (SELECT day, active_users, LAG(active_users) OVER (ORDER BY day) AS prev_users FROM (SELECT (occurred_at AT TIME ZONE 'UTC')::date AS day, COUNT(DISTINCT user_id) AS active_users FROM login_events WHERE success = TRUE AND occurred_at >= TIMESTAMPTZ '2026-10-29 00:00:00+00' AND occurred_at < TIMESTAMPTZ '2026-11-05 00:00:00+00' GROUP BY day) AS d) AS w WHERE day >= DATE '2026-10-30' ORDER BY day"
+    difficulty: hard
+    tags: [logins, window_function, daily]
+
+  - id: usage_30
+    template: usage_30
+    question: "For each active enterprise organization, how many distinct features did it use in the 30 days up to and including today? Show the organization id and name, ordered by id."
+    sql: "SELECT o.id AS org_id, o.name AS org_name, COUNT(DISTINCT u.feature_id) AS features_used FROM organizations AS o JOIN subscriptions AS s ON s.org_id = o.id AND s.plan_tier = 'enterprise' AND s.status = 'active' LEFT JOIN feature_usage_daily AS u ON u.org_id = o.id AND u.usage_date >= DATE '2026-10-07' AND u.usage_date <= DATE '2026-11-05' AND u.event_count > 0 GROUP BY o.id, o.name ORDER BY o.id"
+    difficulty: hard
+    tags: [feature_adoption, enterprise, left_join]

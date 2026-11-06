@@ -6,7 +6,8 @@ worse. So everything that makes a prompt lives here, versioned, and nothing else
 
 from datetime import UTC, datetime
 
-PROMPT_VERSION = "v1"
+# v2 (2026-11-07): dropped "tables_used" from the output (saves about 1 s per answer).
+PROMPT_VERSION = "v2"
 
 SYSTEM_PROMPT = """You are an expert PostgreSQL analyst. Turn the user's question into ONE \
 read-only SELECT query.
@@ -19,7 +20,6 @@ today as TIMESTAMPTZ '{today_sql}'.
 - Follow the business rules and metric definitions given. Do not select personal data.
 - Reply with JSON only, with exactly these keys:
   "sql": the query (a single SELECT, no trailing semicolon),
-  "tables_used": list of table names used,
   "assumptions": list of short strings stating any interpretation you made (for example what \
 "this month" means)."""
 
@@ -30,18 +30,13 @@ OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
         "sql": {"type": "string", "maxLength": 1500},
-        "tables_used": {
-            "type": "array",
-            "items": {"type": "string", "maxLength": 64},
-            "maxItems": 8,
-        },
         "assumptions": {
             "type": "array",
             "items": {"type": "string", "maxLength": 140},
             "maxItems": 3,
         },
     },
-    "required": ["sql", "tables_used", "assumptions"],
+    "required": ["sql", "assumptions"],
 }
 
 

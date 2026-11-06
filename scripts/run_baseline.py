@@ -19,8 +19,6 @@ from collections import Counter, defaultdict
 from datetime import UTC, datetime
 
 import psycopg
-import sqlglot
-from sqlglot import exp
 
 from t2sql.core.config import REPO_ROOT, Settings
 from t2sql.core.profile import load_profile
@@ -35,14 +33,7 @@ from t2sql.validation.executor import QueryTimeout, run_guarded
 from t2sql.validation.golden import load_all_golden
 from t2sql.validation.guard import guard_sql
 from t2sql.validation.splits import split_of
-from t2sql.validation.verify import repair_hint, verify_sql
-
-
-def tables_in(sql: str, dialect: str, known: set[str]) -> set[str]:
-    tree = sqlglot.parse_one(sql, read=dialect)
-    ctes = {c.alias_or_name.lower() for c in tree.find_all(exp.CTE)}
-    names = {t.name.lower() for t in tree.find_all(exp.Table) if t.name}
-    return (names - ctes) & known
+from t2sql.validation.verify import repair_hint, tables_in_sql, verify_sql
 
 
 def percentile(values: list[float], q: float) -> float:
@@ -95,7 +86,7 @@ def main() -> int:
             expected = run_guarded(conn, guard_sql(item.sql, **guard_kwargs).sql).rows
             tables = None
             if args.mode == "oracle":
-                tables = tables_in(item.sql, dialect.sqlglot_name, known)
+                tables = set(tables_in_sql(item.sql, dialect.sqlglot_name, known))
             context = render_context(schema, dictionary, settings.ref_now, tables)
             record = {"id": item.id, "difficulty": item.difficulty, "template": item.template}
             messages = build_messages(item.question, context, settings.ref_now)
