@@ -52,6 +52,13 @@ Decision (2026-11-05): **A (schema-specific) now, B (schema-agnostic skills + he
 - Tests / lint (venv active): `pytest`, `pytest tests/unit`, `pytest -m integration` (needs DB up), `ruff check .`
 - Activate venv: `.\.venv\Scripts\Activate.ps1`
 
+## Eval and model serving (added 2026-11-06)
+- Golden queries: `data/eval/golden/<domain>.yaml` (50 items, format in `t2sql.validation.golden`). Every item must pass `python scripts/check_golden.py <file>` (Guard, execution, determinism, <= 100 rows) and `tests/integration/test_golden_set.py`. Items sharing a `template` are paraphrases; split train/test by template. Never write them with `NOW()`; use `TIMESTAMPTZ '2026-11-05 12:00:00+00'`.
+- Scoring is `t2sql.core.result_compare.results_match` (rows, not SQL text; numbers rounded to 2 decimals; booleans never equal numbers).
+- The only prompt builder is `t2sql.generation.prompt.build_messages` (version `PROMPT_VERSION`); context text comes from `t2sql.retrieval.context.render_context` (never shows `pii` columns). Model calls go through `t2sql.generation.client.chat` (OpenAI-compatible, base URL from `Settings.llm_base_url`).
+- `guard_sql` takes a `Dialect`; database-specific refusals live in `dialect.guard_policy`, not in `validation/guard.py`.
+- Model tools: `bash scripts/setup_llama.sh` (pinned, checksum-verified download into gitignored `tools/` and `models/`), `bash scripts/start_llama.sh` (server on 127.0.0.1:8080), `python scripts/run_baseline.py --mode all|oracle` (writes `eval/results/`). Helpers: `scripts/run_sql.py "<sql>"` (guarded read-only try-out), `scripts/show_schema.py [tables]`.
+
 ## Docs upkeep
 - Every new tool, service, env var, port or setup step goes into `docs/setup.md` in the same turn (update its status table and "Last updated").
 - Every new concept or build step goes into `docs/study-guide.html`.
