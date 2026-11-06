@@ -1,0 +1,60 @@
+# A small but complete dictionary used by the unit tests. Not the real saas dictionary.
+meta:
+  id: demo
+  dialect: postgres
+  version: 1
+
+global_rules:
+  - id: money_in_cents
+    text: "Money columns end in _cents (integer cents). Divide by 100.0 for dollars."
+  - id: use_today
+    text: "Use the date given in the prompt as 'today'; never call NOW()."
+
+tables:
+  organizations:
+    description: "Customer companies (accounts)."
+    synonyms: [clients, accounts]
+  subscriptions:
+    description: "One row per organization subscription to a plan tier."
+    synonyms: [contracts]
+    columns:
+      mrr_cents:
+        description: "Monthly recurring revenue in cents."
+        unit: cents
+      status:
+        values:
+          active: "paying customer"
+          past_due: "latest invoice unpaid"
+          canceled: "ended; canceled_at is set"
+  users:
+    description: "People who belong to a customer organization."
+    columns:
+      email:
+        pii: true
+      invoice_emails:
+        values:
+          "on": "send invoice emails"
+          "off": "do not send invoice emails"
+
+metrics:
+  mrr:
+    description: "Monthly recurring revenue in dollars (active and past_due only)."
+    sql: "SELECT SUM(mrr_cents) / 100.0 FROM subscriptions WHERE status IN ('active', 'past_due')"
+    owner: meherlktalluri
+    rationale: "Trialing and canceled subscriptions are not paying."
+  churned_customers:
+    description: "Subscriptions canceled within the last N days."
+    sql: "SELECT COUNT(*) FROM subscriptions WHERE status = 'canceled' AND canceled_at >= {today} - {window_days}"
+    owner: meherlktalluri
+    rationale: "Churn means currently canceled, with the cancel date inside the window."
+    parameters:
+      window_days:
+        default: 30
+        description: "Length of the look-back window in days."
+
+terms:
+  client:
+    maps_to: organizations
+  "big account":
+    maps_to: subscriptions
+    note: "Enterprise plan."
