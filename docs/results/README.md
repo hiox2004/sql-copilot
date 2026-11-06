@@ -22,6 +22,10 @@ prompt version, model file and mode were used. Never edit an old entry; add a ne
 | 003 | 2026-11-07 | Swap model to Qwen3-4B-Instruct-2507 Q4_K_M, no repair | Qwen3-4B | v1 | all, dev n=33 | 84.8% | 87.9% | 8.9 | [003](003-model-bakeoff.md) |
 | 003 | 2026-11-07 | same + repair x2 | Qwen3-4B | v1 | all, dev n=33 | 84.8% | 93.9% | 14.0 | [003](003-model-bakeoff.md) |
 | 003 | 2026-11-07 | **Held-out TEST, run once** | Qwen3-4B | v1 | all, test n=17 | 76.5% | 88.2% | 9.1 | [003](003-model-bakeoff.md) |
+| 004 | 2026-11-07 | New 150-item set, reseeded DB, prompt v2, no repair | Qwen3-4B | v2 | all, dev n=96 | 63.5% | 85.4% | 9.3 | [004](004-bigger-set-reality-check.md) |
+| 004 | 2026-11-07 | same + repair x1 | Qwen3-4B | v2 | all, dev n=96 | 67.7% | 94.8% | 17.2 | [004](004-bigger-set-reality-check.md) |
+
+Rows 001-003 are on the old 50-item set and the old data; they are NOT comparable with 004.
 
 Targets (v1, agreed 2026-11-05, still a guess): >= 70% on held-out templates, p95 < 10 s, 100% of
 red-team attacks blocked.

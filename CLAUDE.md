@@ -53,7 +53,7 @@ Decision (2026-11-05): **A (schema-specific) now, B (schema-agnostic skills + he
 - Activate venv: `.\.venv\Scripts\Activate.ps1`
 
 ## Eval and model serving (added 2026-11-06)
-- Golden queries: `data/eval/golden/<domain>.yaml` (50 items, format in `t2sql.validation.golden`). Every item must pass `python scripts/check_golden.py <file>` (Guard, execution, determinism, <= 100 rows) and `tests/integration/test_golden_set.py`. Items sharing a `template` are paraphrases; split train/test by template. Never write them with `NOW()`; use `TIMESTAMPTZ '2026-11-05 12:00:00+00'`.
+- Golden queries: `data/eval/golden/<domain>.yaml` (150 items, format in `t2sql.validation.golden`). Every item must pass `python scripts/check_golden.py <file>` (Guard, execution, determinism, <= 100 rows) and `tests/integration/test_golden_set.py`. Items sharing a `template` are paraphrases; split train/test by template. Never write them with `NOW()`; use `TIMESTAMPTZ '2026-11-05 12:00:00+00'`.
 - Scoring is `t2sql.core.result_compare.results_match` (rows, not SQL text; numbers rounded to 2 decimals; booleans never equal numbers).
 - The only prompt builder is `t2sql.generation.prompt.build_messages` (version `PROMPT_VERSION`); context text comes from `t2sql.retrieval.context.render_context` (never shows `pii` columns). Model calls go through `t2sql.generation.client.chat` (OpenAI-compatible, base URL from `Settings.llm_base_url`).
 - `guard_sql` takes a `Dialect`; database-specific refusals live in `dialect.guard_policy`, not in `validation/guard.py`.
@@ -66,7 +66,7 @@ Execution accuracy 52% with all tables in the prompt, 54% with oracle tables (n=
 - Every experiment gets an entry in `docs/results/` (scoreboard in its README). Never edit old entries.
 - Golden set split by template with `t2sql.validation.splits.split_of` (frozen hash+salt; 33 dev / 17 test items). Tune only on dev (`run_baseline.py --split dev`); spend test rarely. Scoring ignores column order.
 - Verify/repair: `validation/verify.py` (Guard then plain EXPLAIN, hints from schema) and `graph/repair.py`; `graph/pipeline.py: answer_question` is the single entry point used by `api/main.py` (FastAPI) and `app/streamlit_app.py` (talks to the API only). Repair is optional (`--repair`, `--retries N`): it raises "executes" but not accuracy and costs about 7 s per retry on the 4B model.
-- Current numbers: Qwen3-4B no repair: dev 84.8% (n=33), test 76.5% (n=17, run once), p95 about 9 s. Served with `MODEL=models/qwen3-4b-instruct-2507/Qwen3-4B-Instruct-2507-Q4_K_M.gguf bash scripts/start_llama.sh` (download: `bash scripts/setup_challenger.sh`).
+- Current numbers (150-item set, 2026-11-07): Qwen3-4B, prompt v2, dev n=96: 63.5% without repair, 67.7% with 1 retry (p95 17 s, too slow); hard questions 35%. The earlier 84.8%/76.5% (entry 003) came from the old 50-item set and was too optimistic. Test split on the new set not yet spent. Next lever: training data + fine-tune or retrieved examples. Served with `MODEL=models/qwen3-4b-instruct-2507/Qwen3-4B-Instruct-2507-Q4_K_M.gguf bash scripts/start_llama.sh` (download: `bash scripts/setup_challenger.sh`).
 
 ## Docs upkeep
 - Every new tool, service, env var, port or setup step goes into `docs/setup.md` in the same turn (update its status table and "Last updated").
