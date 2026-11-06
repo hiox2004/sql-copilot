@@ -15,7 +15,8 @@ Last updated: 2026-11-06.
 | pgAdmin (database browser) | Done, optional | [pgAdmin](#pgadmin-optional-database-browser) |
 | Snapshots and scratch database | Done | [Snapshots](#snapshots-and-the-scratch-database) |
 | Claude Code tutor agent + `teach` skill | Done | [Claude Code](#claude-code) |
-| `pyproject.toml`, pytest, ruff, VS Code interpreter setting | Done (61 tests passing) | [Python](#python-environment) |
+| `pyproject.toml`, pytest, ruff, VS Code interpreter setting | Done (123 tests passing) | [Python](#python-environment) |
+| GitHub Actions CI (`.github/workflows/ci.yml`) | Written, **not yet run on GitHub** | [CI](#continuous-integration-ci) |
 | Draft dictionary generator (`scripts/draft_dictionary.py`) | Done | [Draft dictionary](#draft-dictionary-generator) |
 | llama.cpp (local model serving) | Planned | [Planned](#planned-setups-not-done-yet) |
 | Colab/Kaggle (training) | Planned | [Planned](#planned-setups-not-done-yet) |
@@ -131,7 +132,7 @@ Both ports are bound to `127.0.0.1`, so they are reachable only from this machin
 1. `01_roles.sh` creates the read-only role `copilot_ro` (`default_transaction_read_only = on`, `statement_timeout = 10s`).
 2. `02_load_schema.sh` runs every `/schema/*.sql` file in name order, passing the pinned date as a psql variable:
    `01_schema.sql` -> `02_schema_extra.sql` -> `03_seed_core.sql` -> `04_seed_extra.sql` -> `99_checks.sql`.
-3. `99_checks.sql` runs 35 consistency queries. **If any rule is violated it raises an error and the whole initialisation fails** (the container will not become healthy).
+3. `99_checks.sql` runs 36 consistency queries. **If any rule is violated it raises an error and the whole initialisation fails** (the container will not become healthy).
 4. The loader grants `SELECT` on all tables to `copilot_ro`.
 
 `ref_include.inc` (not a `.sql` file, so the loader skips it) defines `pg_temp.ref()`, the pinned "now". Seed and check SQL must use it instead of `NOW()`.
@@ -169,6 +170,23 @@ Three ways the data is "saved": the seed files in git are the recipe (source of 
 | Restore another snapshot | `bash infra/scripts/restore_db.sh data/snapshots/other.sql my_db` |
 
 `restore_db.sh` refuses to overwrite the main database. Experiment (INSERT/UPDATE/DELETE, broken queries) only in `saas_scratch`; the copilot itself only uses the read-only role on `saas`.
+
+## Continuous integration (CI)
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request: install the package, `ruff check .`, start the same Docker Compose database used locally (`cp .env.example .env`, `up -d --wait`, which also runs the consistency checks), then `pytest` (unit and database-backed integration tests). Status: written but **unverified until the first push** shows a green run. If it fails, the last step prints the database log.
+
+## Swapping in a rebuilt database without losing the old one
+
+When seed files change, you can test the new data first without touching the real database (this is how the login seed was fixed on 2026-11-06):
+
+```
+docker exec t2sql-postgres psql -U admin -d postgres -c "CREATE DATABASE saas_fix"
+# load each file: psql -d saas_fix -v ref_now="'2026-11-05 12:00:00+00'" -f /schema/<file>.sql   (prefix with MSYS_NO_PATHCONV=1 in Git Bash)
+# when happy (no open connections): ALTER DATABASE saas RENAME TO saas_old; ALTER DATABASE saas_fix RENAME TO saas;
+docker exec t2sql-postgres psql -U admin -d saas -c "GRANT SELECT ON ALL TABLES IN SCHEMA public TO copilot_ro"
+```
+
+`saas_old` is the previous version; drop it (`DROP DATABASE saas_old`) once you are sure. A fresh volume (`down -v`, `up -d`) always builds the current seed files.
 
 ## Draft dictionary generator
 

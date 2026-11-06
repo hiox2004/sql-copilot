@@ -30,7 +30,9 @@ Question -> **Retrieve** (hybrid dense+BM25, data dictionary, FK graph walk) -> 
 - Big account = enterprise plan. Revenue = `payments.amount_cents` where status = 'succeeded', orders and invoices both, in dollars (cents / 100.0).
 - Churned = status 'canceled' with `canceled_at` in the window (default last 30 days). Active user = successful login in the last 7 days.
 - "This month" = calendar month of the pinned date, UTC (show it in `assumptions`). Open tickets = status IN ('open','pending').
-- Known seed weakness to fix later: logins are uniform (99% of users active in 30 days).
+- Login seed (fixed 2026-11-06): users are engaged / lapsing / dormant / never-logged-in, giving ~15% active in 7 days and ~43% in 30 days. Check 36 in `99_checks.sql` fails if activity turns uniform again.
+- Dictionary content: `data/dictionaries/saas.yaml` (36 tables, 8 metrics, 11 PII columns). Metrics are rendered with `core/metric_render.py` (`{today}` becomes a timestamptz literal). `tests/integration/test_dictionary_vs_db.py` keeps it consistent with the database.
+- Red-team set: `data/eval/redteam.yaml` (each attack names the layer that must stop it). DB-layer attacks are tested today; parser, limits and PII layers are tested when built. Known gap: a session can `SET statement_timeout = 0`, so the Guard must reject `SET` and set the timeout itself.
 
 ## Training strategy
 Decision (2026-11-05): **A (schema-specific) now, B (schema-agnostic skills + held-out schema) later.** Still write the training-data generator against an introspected schema, not hard-coded to ours, so B stays cheap. Remember the memorization risk when reading eval scores.

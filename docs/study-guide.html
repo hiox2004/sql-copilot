@@ -96,7 +96,7 @@ button.t{font:500 .8rem var(--body);border:1px solid var(--line);background:var(
   <div class="grp">Basics</div>
   <a href="#sql">SQL &amp; Postgres</a><a href="#llm">LLM basics</a><a href="#t2s">Text-to-SQL</a><a href="#docker">Docker</a><a href="#pyproj">Python project setup</a><a href="#schema">Schema design</a><a href="#dbtools">DB snapshots &amp; browsing</a><a href="#claude">Claude Code setup</a><a href="#hw">Your hardware</a>
   <div class="grp">Working</div>
-  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#dict3">Dictionary: models &amp; loader</a><a href="#dict4">Dictionary: introspection</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
+  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#dict3">Dictionary: models &amp; loader</a><a href="#dict4">Dictionary: introspection</a><a href="#dict5">Dictionary: content &amp; DB tests</a><a href="#seedfix">Seed fix</a><a href="#redteam">Red-team set</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
   <div class="grp">Advanced</div>
   <a href="#adv">Advanced topics</a><a href="#rl">SFT, GRPO, voting</a><a href="#fail">Failure modes</a>
   <div class="grp">Review</div>
@@ -514,7 +514,7 @@ enums:
       <tr><td>open + pending (proposal)</td><td>261</td></tr>
       <tr><td>not yet resolved/closed</td><td>261 (same set)</td></tr>
     </tbody></table></div>
-  <div class="callout warn"><b>Data weakness found while measuring:</b> logins are spread uniformly, so 99% of users count as "active in 30 days". A metric that returns almost everyone cannot be tested meaningfully. The seed should later give users uneven activity (some dormant, canceled orgs logging in less).</div>
+  <div class="callout warn"><b>Data weakness found while measuring (now fixed):</b> logins were spread uniformly, so 99% of users counted as "active in 30 days". A metric that returns almost everyone cannot be tested meaningfully. The seed now splits users into engaged, lapsing, dormant and never-logged-in groups (about 15% active in 7 days, 43% in 30 days), and check 36 fails if the data ever turns uniform again. See <a href="#dict5">the next sections</a>.</div>
   <h3>Beyond content: what the dictionary system itself needs</h3>
   <div class="grid">
     <div class="card"><span class="chip c-green">Format + validation</span><p>A strict schema for the YAML (Pydantic model) so a typo is caught at load time, not at answer time.</p></div>
@@ -641,7 +641,66 @@ enums:
   </div>
   <div class="callout warn"><b>Gotcha: <code>localhost</code> hung on Windows.</b> It resolves to IPv6 (<code>::1</code>) first, but Docker publishes the port on IPv4 only, so the connection waited instead of failing. Use <code>127.0.0.1</code>, and always set a <code>connect_timeout</code> so a down database fails in seconds, not minutes.</div>
   <div class="callout tip"><b>Two places must agree, so a test guards them.</b> The pinned date lives in the Docker loader script and in <code>config.py</code>. A unit test reads the script and fails if the defaults differ. When duplication cannot be avoided, test it.</div>
-  <p class="count" style="font-size:.8rem;color:var(--muted)">61 tests pass (6 of them integration tests that read the live schema as the read-only role). Next: step 4, fill the draft by hand into <code>saas.yaml</code>.</p>
+  <p class="count" style="font-size:.8rem;color:var(--muted)">61 tests pass at this point (6 of them integration tests that read the live schema as the read-only role). Next: step 4, fill the draft into <code>saas.yaml</code>.</p>
+</section>
+
+<section id="dict5">
+  <span class="lvl l-w">Working</span>
+  <h2>Dictionary steps 4 and 5: content, then proof against the database</h2>
+  <p class="lead">Step 4 turned the TODO draft into <code>data/dictionaries/saas.yaml</code>: 36 table descriptions with synonyms, meanings for every allowed value, 11 personal-data columns, and 8 business metrics. Step 5 added tests that compare that file with the live database, because the loader alone cannot know whether a name is real.</p>
+  <h3>How a metric becomes SQL</h3>
+  <p>A metric is stored as a template, for example <code>... canceled_at &gt; {today} - make_interval(days =&gt; {window_days})</code>. <code>core/metric_render.py</code> fills it in: <code>{today}</code> becomes <code>TIMESTAMPTZ '2026-11-05 12:00:00+00'</code> and each parameter becomes an integer. Only declared parameters can be overridden and only integers are accepted, so nothing free-form is ever pasted into SQL (a test tries <code>"1; DROP TABLE x"</code>).</p>
+  <div class="callout warn"><b>A mistake the tests would have caught.</b> My first sketch was <code>{today} - {window_days}</code>. In Postgres you cannot subtract an integer from a timestamp with time zone (it works for plain dates). That is exactly why every metric is executed in step 5 instead of just being read.</div>
+  <h3>What the database tests check</h3>
+  <div class="tablebox"><table>
+    <thead><tr><th>Test</th><th>Catches</th></tr></thead>
+    <tbody>
+      <tr><td>Every dictionary table exists / every database table is documented</td><td>A typo like <code>organisations</code>, or a forgotten table</td></tr>
+      <tr><td>Every named column exists</td><td>Stale or misspelled columns</td></tr>
+      <tr><td>Listed values equal the CHECK constraint, both directions</td><td>A wrong or missing status value, or an undocumented constrained column</td></tr>
+      <tr><td>Money columns declare <code>unit: cents</code> exactly when the name says money</td><td>Forgetting the cents-to-dollars rule</td></tr>
+      <tr><td>Each metric runs and returns one non-null value (as the read-only role)</td><td>Invalid SQL, wrong tables, empty results</td></tr>
+    </tbody></table></div>
+  <p>We proved the key test can fail: planting the <code>organisations</code> typo in a copy makes the step 2 loader accept it (36 tables) while step 5 reports <code>organisations</code> missing and <code>organizations</code> undocumented.</p>
+  <div class="callout tip"><b>A test failed and the code was right.</b> The "money columns" test flagged <code>mrr_cents_before</code>: my naming rule only looked for the suffix <code>_cents</code>. The same blind spot was in the draft generator, so both were fixed (marker anywhere, followed by <code>_</code> or the end) and a test pins it. The heuristic for personal data also missed <code>salary_cents</code>, so <code>salary</code> was added. Heuristics need review.</div>
+  <h3>Decisions that are yours to confirm</h3>
+  <ul class="steps">
+    <li><b>Personal-data columns (11):</b> <code>postal_code</code>, employee <code>email</code>/<code>full_name</code>/<code>salary_cents</code>, lead <code>contact_email</code>, <code>full_name</code> of sales reps and support agents, ticket <code>subject</code> and comment <code>body</code> (free text can hold personal details), user <code>email</code>/<code>full_name</code>. <code>ip_country</code> is treated as a coarse location, not personal data.</li>
+    <li><b>Big account</b> is defined as an <b>active</b> enterprise subscription (the agreed definition only says "enterprise plan"; status is my assumption).</li>
+  </ul>
+</section>
+
+<section id="seedfix">
+  <span class="lvl l-w">Working</span>
+  <h2>Fixing the login seed (realistic data matters)</h2>
+  <p class="lead">Test data that is too uniform hides bugs: if 99% of users are "active", a metric for active users cannot be told apart from a plain user count. Users are now grouped by id: 30% engaged (logins up to today), 25% lapsing (last login 8 to 30 days ago), 30% dormant (31 to 90 days ago), 15% never logged in; each also gets 2 to 12 attempts.</p>
+  <div class="tablebox"><table>
+    <thead><tr><th>Users</th><th>Active in 7 days</th><th>Active in 30 days</th><th>Never logged in</th></tr></thead>
+    <tbody>
+      <tr><td>Before</td><td>64%</td><td>99%</td><td>0</td></tr>
+      <tr><td>After</td><td>15% (66 of 450)</td><td>43%</td><td>15%</td></tr>
+    </tbody></table></div>
+  <ul class="steps">
+    <li><b>Test it on a copy first.</b> The new seed was loaded into a scratch database and all checks ran there.</li>
+    <li><b>Add a check for the new rule</b> (check 36: active share must stay within 5 to 40% and 20 to 70%), and prove it: it fails on the old database and passes on the new one.</li>
+    <li><b>Swap by renaming</b> (<code>saas</code> becomes <code>saas_old</code>, the new one becomes <code>saas</code>) so nothing is lost and the swap is instant. See <code>docs/setup.md</code>.</li>
+  </ul>
+</section>
+
+<section id="redteam">
+  <span class="lvl l-a">Advanced</span>
+  <h2>The red-team set, and two findings about our own safety</h2>
+  <p class="lead">"100% of attacks blocked" is meaningless without a list of attacks. <code>data/eval/redteam.yaml</code> holds 26 of them (writes, DDL, privilege abuse, stacked statements, denial of service, personal-data requests, prompt injection). Each names the layer that must stop it: <b>db_role</b> (the read-only role), <b>guard_parser</b> (sqlglot), <b>guard_limits</b> (LIMIT and timeout), <b>guard_pii</b> (blocked columns).</p>
+  <div class="grid">
+    <div class="card"><span class="chip c-green">Tested now</span><p>19 attacks assigned to <b>db_role</b> run as the real read-only login, one connection each, always rolled back, with table row counts compared before and after. All are refused by the database.</p></div>
+    <div class="card"><span class="chip c-amber">Waiting</span><p>Attacks for the parser, limits and personal-data layers are written, but those layers are not built. They become tests when each layer exists.</p></div>
+  </div>
+  <h3>Two findings (both verified by running them)</h3>
+  <div class="grid">
+    <div class="card"><span class="chip c-green">Good: two locks, not one</span><p>Even after a session turns read-only mode off, <code>DELETE</code>, <code>UPDATE</code> and <code>CREATE TABLE</code> still fail with <code>InsufficientPrivilege</code>, because the role was granted only <code>SELECT</code>. My first version of that test was wrong: the <code>SET</code> had not taken effect inside the open transaction, so the refusal came from read-only mode. Using autocommit made the lock really off.</p></div>
+    <div class="card"><span class="chip c-rose">Gap: the timeout is a default, not a wall</span><p>A session can run <code>SET statement_timeout = 0</code> and remove the 10-second limit. So the Guard must reject <code>SET</code> statements and set the timeout itself on every connection it opens. Recorded as the attack <code>dos_disable_timeout</code>.</p></div>
+  </div>
+  <div class="callout tip"><b>Defense in depth, concretely.</b> The role setting alone looked sufficient until we tried to break it. Always attack your own safety layers before trusting them.</div>
 </section>
 
 <section id="ft">
@@ -963,10 +1022,10 @@ httpx.post("http://localhost:8080/v1/chat/completions", json={
 <section id="roadmap">
   <h2>Roadmap with what you learn at each step</h2>
   <ul class="steps">
-    <li><b>Docker + Postgres + seeded SaaS schema</b> — Docker, SQL, keys, roles. <span class="chip c-green">done</span> (36 tables, ~42k rows, pinned date, 35 consistency checks, read-only role verified)</li>
-    <li><b>Repo scaffold + Dialect interface</b> — packaging, Protocols, YAML profiles.</li>
-    <li><b>Evaluation set</b> — golden SQL, result-row comparison.</li>
-    <li><b>Data dictionary</b> — business vocabulary as data.</li>
+    <li><b>Docker + Postgres + seeded SaaS schema</b> — Docker, SQL, keys, roles. <span class="chip c-green">done</span> (36 tables, ~42k rows, pinned date, 36 consistency checks, read-only role verified)</li>
+    <li><b>Repo scaffold + Dialect interface</b> — packaging, Protocols, YAML profiles. <span class="chip c-green">done</span></li>
+    <li><b>Evaluation set</b> — golden SQL, result-row comparison. <span class="chip c-amber">partly: red-team set written; golden queries not yet</span></li>
+    <li><b>Data dictionary</b> — business vocabulary as data. <span class="chip c-green">done</span> (models, loader, introspection, content, database tests; owner review of PII and "big account" pending)</li>
     <li><b>Retrieval</b> — embeddings, BM25, RRF, FK graph, recall@k.</li>
     <li><b>Baselines</b> — base model alone, then with RAG.</li>
     <li><b>Training data</b> — synthetic generation, execution filtering, template splits.</li>
@@ -1014,6 +1073,10 @@ httpx.post("http://localhost:8080/v1/chat/completions", json={
     <details><summary>29. A dictionary says <code>organisations</code> but the table is <code>organizations</code>. Which step catches it?</summary><p>Not the loader (step 2): the name is a valid identifier and the loader never sees the database. The step 5 tests do ("every dictionary table exists" and "every database table is covered"). Step 3's draft generator prevents it by copying names from the catalog.</p></details>
     <details><summary>30. Why read allowed values from CHECK constraints instead of <code>SELECT DISTINCT</code>?</summary><p>CHECK constraints are structure, so no row data is touched, and they are complete by definition because the database enforces them. DISTINCT would read data, could miss rare values, and could leak personal data.</p></details>
     <details><summary>31. Why define a <code>Dialect</code> Protocol instead of calling Postgres code directly?</summary><p>The pipeline then depends on a contract, not a database. A new database means one new adapter plus a profile and dictionary, with no change to retrieval, graph, API or UI.</p></details>
+    <details><summary>32. Why is <code>{today} - {window_days}</code> a bug in Postgres, and how did we catch this class of mistake?</summary><p>A timestamp with time zone minus a plain integer is not valid (it only works for dates). The fix is <code>make_interval(days =&gt; N)</code>. We catch such mistakes by actually executing every metric against the database in tests instead of only reading them.</p></details>
+    <details><summary>33. The login data made "active users" nearly equal to "all users". Why is that a problem for evaluation, and what did we do?</summary><p>A metric that returns almost everyone cannot be told apart from a plain count, so a wrong query could still score as correct. We made activity uneven (engaged, lapsing, dormant, never) and added a check that fails if it turns uniform again.</p></details>
+    <details><summary>34. The role has a 10-second statement timeout. Why is that not enough on its own?</summary><p>A session can run <code>SET statement_timeout = 0</code>. The Guard must reject SET statements and apply the timeout itself on every connection.</p></details>
+    <details><summary>35. How did we make sure a test of the "read-only" lock really tested the lock?</summary><p>The first version raised an error for the wrong reason (the SET had not taken effect inside the open transaction). Running with autocommit switched read-only mode truly off, and the writes were then refused by privileges. Always check that a passing test would fail if the protection were removed.</p></details>
     <details><summary>20. Why do the golden answers need a pinned "today"?</summary><p>Questions like "churned this month" depend on the current date. If the data hangs off <code>NOW()</code>, the right answer changes every day and the eval expires. Pinning the date (2026-11-05, also injected into the prompt) keeps answers stable.</p></details>
     <details><summary>21. All 35 data checks passed on the first run. Why did we still corrupt the data on purpose?</summary><p>A check that can never fail proves nothing. Injecting known violations in a rolled-back transaction showed each check actually detects its rule.</p></details>
     <details><summary>22. What is a distractor table, and why add them?</summary><p>A plausibly named table that is wrong for a question (plans vs subscriptions, employees vs users). With only 8 tables retrieval is trivial; distractors make table-pruning quality measurable.</p></details>
@@ -1049,6 +1112,8 @@ httpx.post("http://localhost:8080/v1/chat/completions", json={
     <div><b>Strict mode</b> <span>Validation that refuses silent type conversions (e.g. a boolean where a string is expected).</span></div>
     <div><b>Parse, don't validate</b> <span>Turn untrusted input into a trusted typed object once, at the boundary.</span></div>
     <div><b>Norway problem</b> <span>YAML 1.1 reading unquoted NO/on/off/yes as booleans.</span></div>
+    <div><b>Red-team set</b> <span>A list of attacks the system must block, each naming the safety layer responsible; it makes "100% blocked" measurable.</span></div>
+    <div><b>Distribution guard</b> <span>A data check that fails when generated data becomes too uniform to test anything interesting.</span></div>
     <div><b>Introspection</b> <span>Asking the database to describe its own structure (tables, columns, keys, constraints) from the system catalog, without reading rows.</span></div>
     <div><b>Protocol (Python)</b> <span>A contract of required attributes and methods; any class that has them satisfies it, no inheritance needed. Our <code>Dialect</code> is one.</span></div>
     <div><b>Profile</b> <span>Small YAML naming a database's dialect, schema and dictionary path.</span></div>
