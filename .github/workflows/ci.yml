@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install the project and dev tools
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check .
+
+      # The same Docker Compose setup used locally: builds the 36-table database, runs the 35
+      # consistency checks (init fails if any is violated) and creates the read-only role.
+      - name: Start the database
+        run: |
+          cp .env.example .env
+          docker compose -f infra/docker-compose.yml --env-file .env up -d --wait
+
+      - name: Test (unit + database-backed integration)
+        run: pytest -q
+
+      - name: Database logs on failure
+        if: failure()
+        run: docker compose -f infra/docker-compose.yml logs postgres | tail -100
