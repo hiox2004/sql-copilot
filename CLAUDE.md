@@ -59,6 +59,9 @@ Decision (2026-11-05): **A (schema-specific) now, B (schema-agnostic skills + he
 - `guard_sql` takes a `Dialect`; database-specific refusals live in `dialect.guard_policy`, not in `validation/guard.py`.
 - Model tools: `bash scripts/setup_llama.sh` (pinned, checksum-verified download into gitignored `tools/` and `models/`), `bash scripts/start_llama.sh` (server on 127.0.0.1:8080), `python scripts/run_baseline.py --mode all|oracle` (writes `eval/results/`). Helpers: `scripts/run_sql.py "<sql>"` (guarded read-only try-out), `scripts/show_schema.py [tables]`.
 
+## First baseline (2026-11-06, prompt v1, base Qwen2.5-Coder-1.5B Q4_K_M, no retrieval, no repair loop)
+Execution accuracy 52% with all tables in the prompt, 54% with oracle tables (n=50, so 2 points = 1 question); p95 latency about 4.5 s; ~25% of answers fail on invented columns (the repair loop's job). Raw results: `eval/results/baseline_*_v1.json`. Perfect retrieval barely helped, so fine-tuning and verify/repair are the bigger levers. The 70% target is still a guess.
+
 ## Docs upkeep
 - Every new tool, service, env var, port or setup step goes into `docs/setup.md` in the same turn (update its status table and "Last updated").
 - Every new concept or build step goes into `docs/study-guide.html`.

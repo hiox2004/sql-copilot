@@ -24,12 +24,22 @@ today as TIMESTAMPTZ '{today_sql}'.
 "this month" means)."""
 
 # Passed to the server as a JSON schema so the output is always parseable.
+# Bounded on purpose: without limits a small model rambles inside "assumptions" until it runs out
+# of tokens, which truncates the JSON and wastes seconds of latency.
 OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
-        "sql": {"type": "string"},
-        "tables_used": {"type": "array", "items": {"type": "string"}},
-        "assumptions": {"type": "array", "items": {"type": "string"}},
+        "sql": {"type": "string", "maxLength": 1500},
+        "tables_used": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 64},
+            "maxItems": 8,
+        },
+        "assumptions": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 140},
+            "maxItems": 3,
+        },
     },
     "required": ["sql", "tables_used", "assumptions"],
 }
