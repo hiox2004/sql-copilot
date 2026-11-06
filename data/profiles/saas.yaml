@@ -1,0 +1,5 @@
+# Profile for the demo SaaS database (the one in data/schema/).
+id: saas
+dialect: postgres
+schema_name: public
+dictionary: data/dictionaries/saas.yaml
