@@ -54,7 +54,7 @@ def test_duplicates_count():
 
 def test_column_count_and_values_must_agree():
     assert not results_match([(1, 2)], [(1,)])
-    assert not results_match([(1, 2)], [(2, 1)])
+    assert not results_match([(1, 2)], [(2, 3)])
 
 
 def test_booleans_are_not_numbers_and_dates_compare_as_text():
@@ -157,3 +157,25 @@ def test_context_can_be_limited_to_chosen_tables():
 )
 def test_parse_model_json(text, ok):
     assert (parse_model_json(text) is not None) is ok
+
+
+def test_dev_test_split_is_frozen_and_keeps_paraphrases_together():
+    from pathlib import Path
+
+    from t2sql.validation.golden import load_all_golden
+    from t2sql.validation.splits import split_of
+
+    items = load_all_golden(Path(__file__).resolve().parents[2] / "data" / "eval" / "golden")
+    sides: dict[str, set[str]] = {}
+    for item in items:
+        sides.setdefault(item.template, set()).add(split_of(item.template))
+    assert all(len(s) == 1 for s in sides.values())
+    test_templates = sorted(t for t in sides if split_of(t) == "test")
+    # Frozen on 2026-11-07. If this fails, someone changed the split rule or renamed a template.
+    assert len(test_templates) == 14 and len(sides) - len(test_templates) == 26
+
+
+def test_columns_may_come_in_any_order():
+    assert results_match([("a", 1), ("b", 2)], [(1, "a"), (2, "b")])
+    assert not results_match([("a", 1)], [(1, "b")])
+    assert results_match([], [])

@@ -4,7 +4,7 @@ Usage (database up, model server running, golden files present):
     python scripts/run_baseline.py --mode all       # whole schema in the prompt (no retrieval)
     python scripts/run_baseline.py --mode oracle    # only the tables the golden SQL uses
                                                     # (what perfect retrieval would give)
-Options: --limit N (first N items), --out FILE, --label TEXT, --max-tokens N.
+Options: --split dev|test|all, --limit N (first N items), --out FILE, --label TEXT, --max-tokens N.
 Writes eval/results/<label>.json and prints a summary.
 
 Funnel per question: JSON valid -> Guard passes -> executes -> rows match the golden answer.
@@ -32,6 +32,7 @@ from t2sql.retrieval.dictionary import load_dictionary
 from t2sql.validation.executor import QueryTimeout, run_guarded
 from t2sql.validation.golden import load_all_golden
 from t2sql.validation.guard import GuardViolation, guard_sql
+from t2sql.validation.splits import split_of
 
 
 def tables_in(sql: str, dialect: str, known: set[str]) -> set[str]:
@@ -49,6 +50,12 @@ def percentile(values: list[float], q: float) -> float:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--mode", choices=["all", "oracle"], default="all")
+    parser.add_argument(
+        "--split",
+        choices=["dev", "test", "all"],
+        default="all",
+        help="dev for tuning; test only for final numbers (see t2sql.validation.splits)",
+    )
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--label", default="")
     parser.add_argument("--max-tokens", type=int, default=512)
@@ -60,6 +67,8 @@ def main() -> int:
     dictionary = load_dictionary(REPO_ROOT / profile.dictionary)
     dialect = get_dialect(profile.dialect)
     golden = load_all_golden(REPO_ROOT / "data" / "eval" / "golden")
+    if args.split != "all":
+        golden = [g for g in golden if split_of(g.template) == args.split]
     if args.limit:
         golden = golden[: args.limit]
     known = set(dictionary.tables)
@@ -129,6 +138,7 @@ def main() -> int:
     summary = {
         "label": label,
         "mode": args.mode,
+        "split": args.split,
         "prompt_version": PROMPT_VERSION,
         "date": datetime.now(UTC).isoformat(timespec="seconds"),
         "n": total,
