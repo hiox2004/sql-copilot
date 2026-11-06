@@ -15,7 +15,8 @@ Last updated: 2026-11-06.
 | pgAdmin (database browser) | Done, optional | [pgAdmin](#pgadmin-optional-database-browser) |
 | Snapshots and scratch database | Done | [Snapshots](#snapshots-and-the-scratch-database) |
 | Claude Code tutor agent + `teach` skill | Done | [Claude Code](#claude-code) |
-| `pyproject.toml`, pytest, ruff, VS Code interpreter setting | Done (123 tests passing) | [Python](#python-environment) |
+| `pyproject.toml`, pytest, ruff, VS Code interpreter setting | Done (204 tests passing) | [Python](#python-environment) |
+| Guard (`validation/guard.py`) and executor (`validation/executor.py`) | Done, tested against the red-team set | (library code, no setup) |
 | GitHub Actions CI (`.github/workflows/ci.yml`) | Written, **not yet run on GitHub** | [CI](#continuous-integration-ci) |
 | Draft dictionary generator (`scripts/draft_dictionary.py`) | Done | [Draft dictionary](#draft-dictionary-generator) |
 | llama.cpp (local model serving) | Planned | [Planned](#planned-setups-not-done-yet) |

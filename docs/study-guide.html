@@ -96,7 +96,7 @@ button.t{font:500 .8rem var(--body);border:1px solid var(--line);background:var(
   <div class="grp">Basics</div>
   <a href="#sql">SQL &amp; Postgres</a><a href="#llm">LLM basics</a><a href="#t2s">Text-to-SQL</a><a href="#docker">Docker</a><a href="#pyproj">Python project setup</a><a href="#schema">Schema design</a><a href="#dbtools">DB snapshots &amp; browsing</a><a href="#claude">Claude Code setup</a><a href="#hw">Your hardware</a>
   <div class="grp">Working</div>
-  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#dict3">Dictionary: models &amp; loader</a><a href="#dict4">Dictionary: introspection</a><a href="#dict5">Dictionary: content &amp; DB tests</a><a href="#seedfix">Seed fix</a><a href="#redteam">Red-team set</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
+  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#dict3">Dictionary: models &amp; loader</a><a href="#dict4">Dictionary: introspection</a><a href="#dict5">Dictionary: content &amp; DB tests</a><a href="#seedfix">Seed fix</a><a href="#redteam">Red-team set</a><a href="#guardbuilt">Guard (built)</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
   <div class="grp">Advanced</div>
   <a href="#adv">Advanced topics</a><a href="#rl">SFT, GRPO, voting</a><a href="#fail">Failure modes</a>
   <div class="grp">Review</div>
@@ -693,7 +693,7 @@ enums:
   <p class="lead">"100% of attacks blocked" is meaningless without a list of attacks. <code>data/eval/redteam.yaml</code> holds 26 of them (writes, DDL, privilege abuse, stacked statements, denial of service, personal-data requests, prompt injection). Each names the layer that must stop it: <b>db_role</b> (the read-only role), <b>guard_parser</b> (sqlglot), <b>guard_limits</b> (LIMIT and timeout), <b>guard_pii</b> (blocked columns).</p>
   <div class="grid">
     <div class="card"><span class="chip c-green">Tested now</span><p>19 attacks assigned to <b>db_role</b> run as the real read-only login, one connection each, always rolled back, with table row counts compared before and after. All are refused by the database.</p></div>
-    <div class="card"><span class="chip c-amber">Waiting</span><p>Attacks for the parser, limits and personal-data layers are written, but those layers are not built. They become tests when each layer exists.</p></div>
+    <div class="card"><span class="chip c-green">Also tested now</span><p>The parser, limits and personal-data layers now exist (<code>validation/guard.py</code>, next section), and every attack that has SQL is run through them without a database.</p></div>
   </div>
   <h3>Two findings (both verified by running them)</h3>
   <div class="grid">
@@ -701,6 +701,43 @@ enums:
     <div class="card"><span class="chip c-rose">Gap: the timeout is a default, not a wall</span><p>A session can run <code>SET statement_timeout = 0</code> and remove the 10-second limit. So the Guard must reject <code>SET</code> statements and set the timeout itself on every connection it opens. Recorded as the attack <code>dos_disable_timeout</code>.</p></div>
   </div>
   <div class="callout tip"><b>Defense in depth, concretely.</b> The role setting alone looked sufficient until we tried to break it. Always attack your own safety layers before trusting them.</div>
+</section>
+
+<section id="guardbuilt">
+  <span class="lvl l-a">Advanced</span>
+  <h2>The Guard, built: parse, restrict, limit, then run</h2>
+  <p class="lead">Between the model and the database sits <code>validation/guard.py</code>. It reads the SQL as a <b>tree</b> with <code>sqlglot</code> and either returns safe SQL (with a LIMIT) or raises <code>GuardViolation</code> naming the rule. <code>validation/executor.py</code> then runs approved SQL in a read-only transaction with a timeout that <i>our code</i> sets.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 760 130" role="img" aria-label="Model SQL through parse, tree checks, limit, executor, database">
+    <defs><marker id="e5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="6" y="35" width="110" height="60" rx="10" class="f-violet"/><text x="61" y="62" text-anchor="middle" font-size="12" font-weight="700">Model SQL</text><text x="61" y="80" text-anchor="middle" font-size="10" class="sub">untrusted text</text>
+    <path d="M116 65H138" class="line" marker-end="url(#e5)"/>
+    <rect x="140" y="35" width="190" height="60" rx="10" class="f-rose"/><text x="235" y="58" text-anchor="middle" font-size="12" font-weight="700">guard_sql</text><text x="235" y="75" text-anchor="middle" font-size="10" class="sub">1 statement, SELECT only, no writes</text><text x="235" y="88" text-anchor="middle" font-size="10" class="sub">tables, functions, PII, LIMIT</text>
+    <path d="M330 65H352" class="line" marker-end="url(#e5)"/>
+    <rect x="354" y="35" width="190" height="60" rx="10" class="f-amber"/><text x="449" y="58" text-anchor="middle" font-size="12" font-weight="700">run_guarded</text><text x="449" y="75" text-anchor="middle" font-size="10" class="sub">READ ONLY transaction</text><text x="449" y="88" text-anchor="middle" font-size="10" class="sub">SET LOCAL timeout, rollback</text>
+    <path d="M544 65H566" class="line" marker-end="url(#e5)"/>
+    <rect x="568" y="35" width="186" height="60" rx="10" class="f-blue"/><text x="661" y="58" text-anchor="middle" font-size="12" font-weight="700">Read-only role</text><text x="661" y="75" text-anchor="middle" font-size="10" class="sub">SELECT privilege only</text><text x="661" y="88" text-anchor="middle" font-size="10" class="sub">the last lock</text>
+  </svg></div>
+  <h3>Why a tree, not a text search</h3>
+  <p>Looking for the word "DELETE" fails in both directions: it blocks a harmless column called <code>deleted_at</code> and misses tricks. A parse tree knows what each piece <i>is</i>. Proof from our own red-team set: <code>WITH d AS (DELETE ...) SELECT ...</code> and <code>SELECT * INTO new_table ...</code> both parse as a plain <code>Select</code> at the root, so checking only the root type is not enough. The guard walks every node.</p>
+  <div class="tablebox"><table>
+    <thead><tr><th>Rule</th><th>Example refused</th></tr></thead>
+    <tbody>
+      <tr><td>Exactly one statement, and it is a SELECT / WITH / UNION</td><td><code>SELECT 1; DROP TABLE users</code>, <code>EXPLAIN ANALYZE DELETE ...</code></td></tr>
+      <tr><td>No write, DDL, SET, GRANT, COPY or INTO node anywhere in the tree</td><td>data-modifying CTE, <code>SELECT ... INTO</code>, <code>SET statement_timeout = 0</code></td></tr>
+      <tr><td>Blocked functions and families (<code>pg_*</code>, <code>lo_*</code>, <code>dblink*</code>, <code>set_config</code>, ...)</td><td><code>pg_sleep(600)</code>, <code>pg_read_file(...)</code></td></tr>
+      <tr><td>Only tables in the dictionary; no system catalogs</td><td><code>pg_shadow</code>, <code>information_schema.tables</code></td></tr>
+      <tr><td>No <code>pii</code> column, no <code>SELECT *</code> over a table that has one, no whole-row reference</td><td><code>SELECT email ...</code>, <code>SELECT * FROM users</code>, <code>row_to_json(u)</code></td></tr>
+      <tr><td>LIMIT always present and at most 1000 (added or lowered)</td><td>an unbounded cross join becomes <code>... LIMIT 1000</code></td></tr>
+    </tbody></table></div>
+  <h3>Three things we learned while building it</h3>
+  <div class="grid">
+    <div class="card"><span class="chip c-rose">Tests that pass first time are suspect</span><p>All guard tests passed on the first run, so we disabled each protection in turn: with PII checking off, <code>SELECT email</code> went through; with the forbidden-node check off, the hidden DELETE went through. The tests do bite.</p></div>
+    <div class="card"><span class="chip c-amber">Probe for false alarms</span><p>Trying legitimate queries found that <code>generate_series(...)</code> (used for per-day time series) was rejected as an "unknown table". Table-valued functions are now allowed but still vetted as functions.</p></div>
+    <div class="card"><span class="chip c-rose">A leak we had not listed</span><p><code>SELECT row_to_json(u) FROM users u</code> returns the whole row, emails included, without naming a blocked column. It is now refused, with tests, and the same for <code>to_jsonb(users)</code> and nested stars.</p></div>
+    <div class="card"><span class="chip c-green">Timeout closed</span><p>The executor runs <code>SET LOCAL statement_timeout</code> inside its own transaction (an integer we format, never model text). Tests: a 200 ms limit cancels <code>pg_sleep(5)</code>; the connection still works afterwards; the setting does not leak to later queries.</p></div>
+  </div>
+  <div class="callout warn"><b>Honest limit of "100% blocked".</b> The red-team set and the guard were written by the same author, so passing it proves the guard handles <i>known</i> attacks, not that it is complete. The set must keep growing (and ideally be extended by someone else) as new tricks appear.</div>
 </section>
 
 <section id="ft">
@@ -1077,6 +1114,9 @@ httpx.post("http://localhost:8080/v1/chat/completions", json={
     <details><summary>33. The login data made "active users" nearly equal to "all users". Why is that a problem for evaluation, and what did we do?</summary><p>A metric that returns almost everyone cannot be told apart from a plain count, so a wrong query could still score as correct. We made activity uneven (engaged, lapsing, dormant, never) and added a check that fails if it turns uniform again.</p></details>
     <details><summary>34. The role has a 10-second statement timeout. Why is that not enough on its own?</summary><p>A session can run <code>SET statement_timeout = 0</code>. The Guard must reject SET statements and apply the timeout itself on every connection.</p></details>
     <details><summary>35. How did we make sure a test of the "read-only" lock really tested the lock?</summary><p>The first version raised an error for the wrong reason (the SET had not taken effect inside the open transaction). Running with autocommit switched read-only mode truly off, and the writes were then refused by privileges. Always check that a passing test would fail if the protection were removed.</p></details>
+    <details><summary>36. Why does the guard inspect the whole parse tree instead of just checking the statement type?</summary><p>A DELETE inside a WITH clause, or SELECT ... INTO, parses as a Select at the root but still writes. Walking every node finds it. A text search for keywords is both too strict (a column named deleted_at) and too weak.</p></details>
+    <details><summary>37. <code>SELECT row_to_json(u) FROM users u</code> never mentions a blocked column. Why is it still a leak?</summary><p>The whole row is returned as JSON, including email and full_name. The guard treats a bare table alias used as a value as a whole-row reference and refuses it when the table holds personal data.</p></details>
+    <details><summary>38. Our guard passed every red-team attack. Does that prove it is safe?</summary><p>No. It proves it handles the known attacks, and the same author wrote both. Safety comes from layers (parser, privileges, read-only transaction, timeout) plus a red-team set that keeps growing.</p></details>
     <details><summary>20. Why do the golden answers need a pinned "today"?</summary><p>Questions like "churned this month" depend on the current date. If the data hangs off <code>NOW()</code>, the right answer changes every day and the eval expires. Pinning the date (2026-11-05, also injected into the prompt) keeps answers stable.</p></details>
     <details><summary>21. All 35 data checks passed on the first run. Why did we still corrupt the data on purpose?</summary><p>A check that can never fail proves nothing. Injecting known violations in a rolled-back transaction showed each check actually detects its rule.</p></details>
     <details><summary>22. What is a distractor table, and why add them?</summary><p>A plausibly named table that is wrong for a question (plans vs subscriptions, employees vs users). With only 8 tables retrieval is trivial; distractors make table-pruning quality measurable.</p></details>
