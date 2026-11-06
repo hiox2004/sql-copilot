@@ -19,7 +19,7 @@ Last updated: 2026-11-07.
 | Guard (`validation/guard.py`) and executor (`validation/executor.py`) | Done, tested against the red-team set | (library code, no setup) |
 | GitHub Actions CI (`.github/workflows/ci.yml`) | Done: first green run 2026-11-06 (34 s) | [CI](#continuous-integration-ci) |
 | Draft dictionary generator (`scripts/draft_dictionary.py`) | Done | [Draft dictionary](#draft-dictionary-generator) |
-| FastAPI service (`api/`) and Streamlit UI (`app/`) | Done (API tested; UI is a thin client) | [API and UI](#api-and-ui) |
+| FastAPI service (`api/`) and Streamlit UI (`app/`) | Done (API tested with attacks; UI smoke-tested 2026-11-07: serves HTTP 200 and answers through the API, clicks not browser-tested) | [API and UI](#api-and-ui) |
 | llama.cpp + Qwen2.5-Coder-1.5B GGUF (local model serving) | Downloaded by script, pinned and checksum-verified | [Local model serving](#local-model-serving-llamacpp) |
 | Colab/Kaggle (training) | Planned | [Planned](#planned-setups-not-done-yet) |
 

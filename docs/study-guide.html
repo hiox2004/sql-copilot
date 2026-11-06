@@ -96,7 +96,7 @@ button.t{font:500 .8rem var(--body);border:1px solid var(--line);background:var(
   <div class="grp">Basics</div>
   <a href="#sql">SQL &amp; Postgres</a><a href="#llm">LLM basics</a><a href="#t2s">Text-to-SQL</a><a href="#docker">Docker</a><a href="#pyproj">Python project setup</a><a href="#schema">Schema design</a><a href="#dbtools">DB snapshots &amp; browsing</a><a href="#claude">Claude Code setup</a><a href="#hw">Your hardware</a>
   <div class="grp">Working</div>
-  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#dict3">Dictionary: models &amp; loader</a><a href="#dict4">Dictionary: introspection</a><a href="#dict5">Dictionary: content &amp; DB tests</a><a href="#seedfix">Seed fix</a><a href="#redteam">Red-team set</a><a href="#guardbuilt">Guard (built)</a><a href="#guardreview">Guard review</a><a href="#evalset">Golden set</a><a href="#baseline">Baseline</a><a href="#repair">Verify &amp; repair</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
+  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#dict3">Dictionary: models &amp; loader</a><a href="#dict4">Dictionary: introspection</a><a href="#dict5">Dictionary: content &amp; DB tests</a><a href="#seedfix">Seed fix</a><a href="#redteam">Red-team set</a><a href="#guardbuilt">Guard (built)</a><a href="#guardreview">Guard review</a><a href="#evalset">Golden set</a><a href="#baseline">Baseline</a><a href="#repair">Verify &amp; repair</a><a href="#bakeoff">Bake-off &amp; latency</a><a href="#trust">Trusting the numbers</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
   <div class="grp">Advanced</div>
   <a href="#adv">Advanced topics</a><a href="#rl">SFT, GRPO, voting</a><a href="#fail">Failure modes</a>
   <div class="grp">Review</div>
@@ -817,6 +817,24 @@ enums:
   <div class="callout warn"><b>Gotchas:</b> (1) database errors for <code>alias.column</code> have no quotes, so our first hint pattern missed exactly the hard cases; (2) hints must never list personal columns; (3) the dev/test split (<code>validation/splits.py</code>, fixed hash of the template name) exists so we tune on dev and spend test only once.</div>
 </section>
 
+<section id="bakeoff">
+  <span class="lvl l-a">Advanced</span>
+  <h2>Bake-off, latency and the API</h2>
+  <p><b>Bake-off:</b> same prompt, same questions, same scorer; only the model file changes. On the dev split the 4B model (Qwen3-4B-Instruct-2507, Q4_K_M, 2.5 GB) scored 84.8% against 51.5% for the 1.5B model, because the business rules (MRR statuses, open tickets, definitions) are language understanding, not SQL syntax. The price: answers take about 6.6 s instead of 3.2 s and nearly fill the 4 GB GPU. Full table: <code>docs/results/003-model-bakeoff.md</code>.</p>
+  <p><b>Where the seconds go:</b> a cold 3,500-token prompt costs about 2.7 s to read, but the server caches a repeated prefix (our context comes before the question), so a warm read costs 0.04 s. What remains is generation at about 25 ms per token, so a retry costs a whole new answer. Therefore the latency levers are <i>shorter answers</i> (prompt v2 drops the redundant <code>tables_used</code> field; we read the tables from the SQL with sqlglot) and not re-reading the prompt.</p>
+  <p><b>API and UI:</b> <code>graph/pipeline.py: answer_question</code> is the one function that runs the whole path (context, generate, verify/repair, guarded run). <code>api/main.py</code> (FastAPI) wraps it; <code>app/streamlit_app.py</code> only calls the API over HTTP. The red-team attacks are replayed <i>through the API</i> in <code>tests/api</code>: a fake model returns each attack and the test asserts nothing ran.</p>
+  <div class="callout warn"><b>Gotcha:</b> VRAM headroom is about 300 MB, so any larger context or a second model on the GPU will crash the server.</div>
+</section>
+
+<section id="trust">
+  <span class="lvl l-a">Advanced</span>
+  <h2>Trusting the numbers: split, noise and a seed bug</h2>
+  <p><b>Dev/test split:</b> every golden question belongs to a template; <code>validation/splits.py</code> assigns each template to dev or test with a fixed hash, so paraphrases never straddle the line and nobody can steer a hard question to one side. We tune on dev; test is spent rarely, otherwise it silently becomes a second dev set.</p>
+  <p><b>Noise:</b> with 17 questions one answer is 6 points and the 95% interval is about +/-20, so "76.5% vs a 70% target" is not a pass. That is why we grew the set to 150 items (96 dev, 54 test). A reviewer model then found 16 weak tests where a <i>wrong</i> query would still score as right (a threshold that filters nothing, a 3-way tie decided by a hidden ORDER BY). A good golden question changes its answer when the query is wrong; we test that by running a plausible wrong variant.</p>
+  <p><b>The seed bug:</b> in PostgreSQL a volatile <code>random()</code> that does not mention the outer row is evaluated <i>once</i> for the whole query, so 400 prospect leads got one shared date, all employees one hire date, and email events were all-or-nothing. We found it because a metric looked implausible (133 lost deals closing the same instant). Fix: <code>random() + 0 * row.id</code>; checks 37-39 now fail if it returns.</p>
+</section>
+
+
 
 <section id="ft">
   <span class="lvl l-w">Working</span>
@@ -1213,6 +1231,10 @@ httpx.post("http://localhost:8080/v1/chat/completions", json={
     <details><summary>17. Why is Qwen3-4B-Instruct-2507 a challenger but not an automatic choice?</summary><p>It is more capable but nearly fills 4 GB VRAM and trains slower on a T4. (Plain Qwen3-4B also has thinking mode on by default, which is why we use the 2507 Instruct variant.) A bake-off against the 1.5B on our own eval decides.</p></details>
     <details><summary>18. Why is Qwen3.5-4B parked for now?</summary><p>Its hybrid DeltaNet layers use custom kernels that are slow on a T4, Unsloth advises against 4-bit QLoRA for it, and its documented 4B LoRA recipe needs about 10 GB and bf16, which a T4 lacks.</p></details>
     <details><summary>19. What techniques lift small-model SQL accuracy more than swapping base models?</summary><p>Supervised fine-tuning followed by reinforcement learning with an execution reward (GRPO), and sampling several candidates, executing them and voting at inference.</p></details>
+    <details><summary>46. Why did a bigger model help far more than the repair loop?</summary><p>Most wrong answers ran fine but used the wrong meaning (a filter, a definition). An error message cannot reveal that; only better understanding can. Repair fixes crashes, not misunderstandings.</p></details>
+    <details><summary>47. Retrying costs about as much as the first try even though the prompt is cached. Why?</summary><p>Reading a cached prompt is almost free (0.04 s); the time is the model generating its answer token by token (about 25 ms each). A retry generates a new answer.</p></details>
+    <details><summary>48. Why can a golden question with 100% accuracy-looking results still be a bad test?</summary><p>If a wrong query returns the same rows (a filter that removes nothing, a tie, a one-row answer), the question cannot tell right from wrong. Check by running a plausible wrong variant.</p></details>
+    <details><summary>49. Why did all 400 prospect leads get the same date?</summary><p>PostgreSQL evaluates a volatile function once per query when it does not depend on the current row. Tying it to the row (<code>random() + 0 * g</code>) forces one draw per row.</p></details>
   </div>
 </section>
 
