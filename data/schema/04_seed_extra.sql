@@ -32,13 +32,30 @@ FROM (SELECT 1 + floor(random()*8)::int AS cid, 1 + floor(random()*150)::int AS 
 JOIN coupons c ON c.id = x.cid JOIN organizations o ON o.id = x.oid;
 
 -- ---------- logins; then users.last_login_at is DERIVED from them ----------
+-- Realistic engagement: users fall into groups by id, so "active in 7 days" is NOT almost everyone.
+--   id%20 in 0-5   (30%) engaged: logins all the way up to today
+--   id%20 in 6-10  (25%) lapsing: last login 8-30 days ago
+--   id%20 in 11-16 (30%) dormant: last login 31-90 days ago
+--   id%20 in 17-19 (15%) never logged in (no login_events; last_login_at stays NULL)
+-- Each user also gets 2-12 login attempts, so activity counts differ between users.
 INSERT INTO login_events (user_id, occurred_at, success, ip_country)
 SELECT u.id,
-       GREATEST(u.created_at, pg_temp.ref() - interval '90 days')
-         + random() * (pg_temp.ref() - GREATEST(u.created_at, pg_temp.ref() - interval '90 days')),
+       w.start_at + (w.end_at - w.start_at) * random(),
        random() < 0.92,
        (ARRAY['US','UK','DE','IN','BR','CA'])[1 + floor(random()*6)::int]
-FROM users u CROSS JOIN generate_series(1,12) g;
+FROM users u
+CROSS JOIN LATERAL (
+  SELECT GREATEST(u.created_at, pg_temp.ref() - interval '90 days') AS start_at,
+         GREATEST(
+           GREATEST(u.created_at, pg_temp.ref() - interval '90 days'),
+           CASE
+             WHEN u.id % 20 <= 5  THEN pg_temp.ref()
+             WHEN u.id % 20 <= 10 THEN pg_temp.ref() - (8 + random() * 22) * interval '1 day'
+             ELSE                      pg_temp.ref() - (31 + random() * 59) * interval '1 day'
+           END) AS end_at
+) w
+CROSS JOIN generate_series(1, 12) g
+WHERE u.id % 20 <= 16 AND g <= 2 + (u.id * 7) % 11;
 
 UPDATE users u SET last_login_at = (SELECT max(occurred_at) FROM login_events l WHERE l.user_id = u.id AND l.success);
 

@@ -90,6 +90,8 @@ BEGIN
      'SELECT (count(*) < 15)::int FROM subscriptions WHERE plan_tier = ''enterprise'''),
     ('too few past_due subscriptions (need >= 8)',
      'SELECT (count(*) < 8)::int FROM subscriptions WHERE status = ''past_due'''),
+    ('login activity looks uniform (need 5-40% of users active in 7 days, 20-70% in 30 days)',
+     'SELECT (a7 < 0.05 * n OR a7 > 0.40 * n OR a30 < 0.20 * n OR a30 > 0.70 * n)::int FROM (SELECT count(*)::numeric AS n, count(*) FILTER (WHERE last_login_at > pg_temp.ref() - interval ''7 days'') AS a7, count(*) FILTER (WHERE last_login_at > pg_temp.ref() - interval ''30 days'') AS a30 FROM users) s'),
     ('too few upgrades/downgrades/reactivations (need >= 10 / 3 / 3)',
      'SELECT ((count(*) FILTER (WHERE event_type = ''upgraded'') < 10) OR (count(*) FILTER (WHERE event_type = ''downgraded'') < 3) OR (count(*) FILTER (WHERE event_type = ''reactivated'') < 3))::int FROM subscription_events')
   ) AS t(name, q)
