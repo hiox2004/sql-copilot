@@ -3,7 +3,7 @@
 Schema-grounded Text-to-SQL copilot: plain-English question -> safe PostgreSQL query. Built as a **learning project**: the `tutor` agent (default, see `.claude/settings.json`) explains each piece while building it. Study material: `docs/study-guide.html`.
 
 ## Pipeline
-Question -> **Retrieve** (hybrid dense+BM25, data dictionary, FK graph walk) -> **Generate** (small open model, primary Qwen2.5-Coder-1.5B-Instruct, challenger Qwen3-4B-Instruct-2507 (non-thinking), Qwen3.5-4B parked; chosen by eval bake-off; QLoRA adapter, JSON out: `sql`, `tables_used`, `assumptions`) -> **Verify** (LangGraph loop: EXPLAIN, patch with error, max 2 retries) -> **Guard** (read-only role, sqlglot SELECT-only, timeout, LIMIT) -> results + assumptions.
+Question -> **Retrieve** (hybrid dense+BM25, data dictionary, FK graph walk) -> **Generate** (small open model, primary Qwen3-4B-Instruct-2507 (non-thinking, chosen by the 2026-11-07 bake-off), fallback Qwen2.5-Coder-1.5B-Instruct, Qwen3.5-4B parked; QLoRA adapter, JSON out: `sql`, `tables_used`, `assumptions`) -> **Verify** (LangGraph loop: EXPLAIN, patch with error, max 2 retries) -> **Guard** (read-only role, sqlglot SELECT-only, timeout, LIMIT) -> results + assumptions.
 
 ## Layout
 - `src/t2sql/{core,retrieval,generation,validation,graph,dialects}` - pure Python package, knows nothing about FastAPI
@@ -61,6 +61,12 @@ Decision (2026-11-05): **A (schema-specific) now, B (schema-agnostic skills + he
 
 ## First baseline (2026-11-06, prompt v1, base Qwen2.5-Coder-1.5B Q4_K_M, no retrieval, no repair loop)
 Execution accuracy 52% with all tables in the prompt, 54% with oracle tables (n=50, so 2 points = 1 question); p95 latency about 4.5 s; ~25% of answers fail on invented columns (the repair loop's job). Raw results: `eval/results/baseline_*_v1.json`. Perfect retrieval barely helped, so fine-tuning and verify/repair are the bigger levers. The 70% target is still a guess.
+
+## Results log, split, repair, API (added 2026-11-07)
+- Every experiment gets an entry in `docs/results/` (scoreboard in its README). Never edit old entries.
+- Golden set split by template with `t2sql.validation.splits.split_of` (frozen hash+salt; 33 dev / 17 test items). Tune only on dev (`run_baseline.py --split dev`); spend test rarely. Scoring ignores column order.
+- Verify/repair: `validation/verify.py` (Guard then plain EXPLAIN, hints from schema) and `graph/repair.py`; `graph/pipeline.py: answer_question` is the single entry point used by `api/main.py` (FastAPI) and `app/streamlit_app.py` (talks to the API only). Repair is optional (`--repair`, `--retries N`): it raises "executes" but not accuracy and costs about 7 s per retry on the 4B model.
+- Current numbers: Qwen3-4B no repair: dev 84.8% (n=33), test 76.5% (n=17, run once), p95 about 9 s. Served with `MODEL=models/qwen3-4b-instruct-2507/Qwen3-4B-Instruct-2507-Q4_K_M.gguf bash scripts/start_llama.sh` (download: `bash scripts/setup_challenger.sh`).
 
 ## Docs upkeep
 - Every new tool, service, env var, port or setup step goes into `docs/setup.md` in the same turn (update its status table and "Last updated").

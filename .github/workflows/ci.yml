@@ -18,7 +18,7 @@ jobs:
           cache: pip
 
       - name: Install the project and dev tools
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,api]"
 
       - name: Lint
         run: ruff check .

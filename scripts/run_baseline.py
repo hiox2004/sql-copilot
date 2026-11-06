@@ -59,7 +59,8 @@ def main() -> int:
         default="all",
         help="dev for tuning; test only for final numbers (see t2sql.validation.splits)",
     )
-    parser.add_argument("--repair", action="store_true", help="verify + up to 2 repair retries")
+    parser.add_argument("--repair", action="store_true", help="verify + repair retries")
+    parser.add_argument("--retries", type=int, default=MAX_RETRIES, help="max repair retries")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--label", default="")
     parser.add_argument("--max-tokens", type=int, default=512)
@@ -123,7 +124,7 @@ def main() -> int:
                     ask=ask,
                     verify=verify,
                     hint=hint,
-                    max_retries=MAX_RETRIES if args.repair else 0,
+                    max_retries=args.retries if args.repair else 0,
                 )
             except ModelServerError as exc:
                 print(f"model server problem: {exc}", file=sys.stderr)
@@ -176,6 +177,7 @@ def main() -> int:
         "mode": args.mode,
         "split": args.split,
         "repair": args.repair,
+        "retries": args.retries if args.repair else 0,
         "prompt_version": PROMPT_VERSION,
         "date": datetime.now(UTC).isoformat(timespec="seconds"),
         "n": total,

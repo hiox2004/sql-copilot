@@ -19,6 +19,7 @@ Last updated: 2026-11-07.
 | Guard (`validation/guard.py`) and executor (`validation/executor.py`) | Done, tested against the red-team set | (library code, no setup) |
 | GitHub Actions CI (`.github/workflows/ci.yml`) | Done: first green run 2026-11-06 (34 s) | [CI](#continuous-integration-ci) |
 | Draft dictionary generator (`scripts/draft_dictionary.py`) | Done | [Draft dictionary](#draft-dictionary-generator) |
+| FastAPI service (`api/`) and Streamlit UI (`app/`) | Done (API tested; UI is a thin client) | [API and UI](#api-and-ui) |
 | llama.cpp + Qwen2.5-Coder-1.5B GGUF (local model serving) | Downloaded by script, pinned and checksum-verified | [Local model serving](#local-model-serving-llamacpp) |
 | Colab/Kaggle (training) | Planned | [Planned](#planned-setups-not-done-yet) |
 
@@ -237,6 +238,24 @@ python scripts/draft_dictionary.py saas      # -> data/dictionaries/saas.draft.y
 
 The profile `data/profiles/saas.yaml` says which dialect and schema to read. `*.draft.yaml` is gitignored (regenerate any time); the finished `saas.yaml` is what gets committed. Pipe-free and safe to re-run: it only overwrites the draft file.
 
+## API and UI
+
+Two optional groups in `pyproject.toml`: `api` (FastAPI, uvicorn, httpx) and `app` (Streamlit, requests).
+
+```
+pip install -e ".[dev,api]"        # API and its tests (CI installs this)
+pip install -e ".[app]"            # add the Streamlit UI
+uvicorn api.main:app --port 8000   # start the API (needs the DB; the model is optional for /health)
+streamlit run app/streamlit_app.py # the UI, talks to API_URL (default http://127.0.0.1:8000)
+```
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | `{"status","db","model"}`. Never fails: `db` and `model` are booleans (model = `GET {LLM_BASE_URL}/models` within 2 s) |
+| `POST /ask` `{"question": "..."}` | 3 to 500 characters. Returns the answer JSON (`ok`, `sql`, `rows`, `assumptions`, ...). HTTP 200 even when `ok` is false; 422 for bad input; 503 when the DB or model server is down |
+
+The API holds one read-only database connection and answers one question at a time (a lock). `API_URL` is read only by the UI. Tests: `pytest tests/api -q` (uses a fake model, so no model server is needed; DB tests skip when the DB is down).
+
 ## Claude Code
 
 | File | Role |
@@ -267,5 +286,9 @@ Study material: open `docs/study-guide.html` in a browser (single self-contained
 These are decided but not installed. Each gets a full section above when it is done.
 
 - **Colab / Kaggle** notebooks for QLoRA training (free GPU). Output is converted to GGUF locally.
-- **Retrieval libraries** (sentence-transformers, rank_bm25, networkx) and **LangGraph / FastAPI / Streamlit** as those stages are built.
+- **Retrieval libraries** (sentence-transformers, rank_bm25, networkx) and **LangGraph** as those stages are built.
 - **CI** (GitHub Actions): not started.
+
+
+## Challenger / primary model download (added 2026-11-07)
+`bash scripts/setup_challenger.sh` downloads Qwen3-4B-Instruct-2507 Q4_K_M (2.5 GB, Apache-2.0) from `huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF` (a community re-pack of Qwen's weights), pinned to commit `a06e946b...`, SHA-256 `3605803b...c67e597` checked, into the gitignored `models/qwen3-4b-instruct-2507/`. It fits the 4 GB GPU with about 300 MB spare (3.77 GB used at `-c 8192`). Serve it with `MODEL=models/qwen3-4b-instruct-2507/Qwen3-4B-Instruct-2507-Q4_K_M.gguf bash scripts/start_llama.sh`.

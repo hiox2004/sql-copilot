@@ -11,7 +11,7 @@ set -euo pipefail
 
 LLAMA_TAG="b12175"
 SERVER="tools/llama.cpp/${LLAMA_TAG}/llama-server.exe"
-MODEL="${MODEL:-models/qwen2.5-coder-1.5b-instruct/qwen2.5-coder-1.5b-instruct-q4_k_m.gguf}"
+MODEL="${MODEL:-models/qwen3-4b-instruct-2507/Qwen3-4B-Instruct-2507-Q4_K_M.gguf}"  # fallback: models/qwen2.5-coder-1.5b-instruct/...
 
 [ -f "$SERVER" ] || { echo "missing $SERVER: run  bash scripts/setup_llama.sh  first"; exit 1; }
 [ -f "$MODEL" ] || { echo "missing $MODEL: run  bash scripts/setup_llama.sh  first"; exit 1; }

@@ -11,7 +11,7 @@ we can always answer: what did we change, what did the numbers do, and what did 
 Rules: n=50 means 2 points = 1 question, so differences under ~6 points are noise. Always say which
 prompt version, model file and mode were used. Never edit an old entry; add a new one.
 
-## Scoreboard (execution accuracy on the 50 golden queries)
+## Scoreboard (execution accuracy on the golden queries; rows 001 use all 50, later rows say dev/test)
 
 | # | Date | Change | Model | Prompt | Mode | Exec. acc. | Executes | p95 s | Entry |
 |---|------|--------|-------|--------|------|-----------|----------|-------|-------|
@@ -19,6 +19,9 @@ prompt version, model file and mode were used. Never edit an old entry; add a ne
 | 001 | 2026-11-06 | same, perfect (oracle) table choice | same | v1 | oracle | 54% | 86% | 4.2 | [001](001-first-baseline.md) |
 | 002 | 2026-11-07 | Dev split, no repair (control) | same | v1 | all, dev n=33 | 51.5% | 75.8% | 4.2 | [002](002-repair-loop.md) |
 | 002 | 2026-11-07 | + verify and repair (max 2 retries) | same | v1 | all, dev n=33 | 54.5% | 90.9% | 12.4 | [002](002-repair-loop.md) |
+| 003 | 2026-11-07 | Swap model to Qwen3-4B-Instruct-2507 Q4_K_M, no repair | Qwen3-4B | v1 | all, dev n=33 | 84.8% | 87.9% | 8.9 | [003](003-model-bakeoff.md) |
+| 003 | 2026-11-07 | same + repair x2 | Qwen3-4B | v1 | all, dev n=33 | 84.8% | 93.9% | 14.0 | [003](003-model-bakeoff.md) |
+| 003 | 2026-11-07 | **Held-out TEST, run once** | Qwen3-4B | v1 | all, test n=17 | 76.5% | 88.2% | 9.1 | [003](003-model-bakeoff.md) |
 
 Targets (v1, agreed 2026-11-05, still a guess): >= 70% on held-out templates, p95 < 10 s, 100% of
 red-team attacks blocked.
