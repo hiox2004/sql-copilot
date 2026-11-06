@@ -3,6 +3,7 @@
 import pytest
 
 from t2sql.core.config import REPO_ROOT
+from t2sql.dialects import get_dialect
 from t2sql.retrieval.dictionary import load_dictionary
 from t2sql.validation.guard import GuardViolation, guard_sql
 from t2sql.validation.redteam import load_redteam
@@ -16,7 +17,7 @@ BLOCKED = DICTIONARY.blocked_columns()
 def guard(sql: str, **kwargs):
     return guard_sql(
         sql,
-        sqlglot_dialect="postgres",
+        dialect=get_dialect("postgres"),
         allowed_tables=TABLES,
         blocked_columns=BLOCKED,
         **kwargs,

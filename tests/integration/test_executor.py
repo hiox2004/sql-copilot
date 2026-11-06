@@ -72,7 +72,7 @@ def test_every_rejected_red_team_attack_is_rejected_before_reaching_the_database
         with pytest.raises(GuardViolation):
             guard_sql(
                 item.sql,
-                sqlglot_dialect=dialect.sqlglot_name,
+                dialect=dialect,
                 allowed_tables=set(DICTIONARY.tables),
                 blocked_columns=DICTIONARY.blocked_columns(),
             )
@@ -83,7 +83,7 @@ def test_every_rejected_red_team_attack_is_rejected_before_reaching_the_database
 def test_limited_query_returns_at_most_max_rows(conn):
     guarded = guard_sql(
         "SELECT * FROM api_requests_daily a, feature_usage_daily b",
-        sqlglot_dialect="postgres",
+        dialect=get_dialect("postgres"),
         allowed_tables=set(DICTIONARY.tables),
         blocked_columns=DICTIONARY.blocked_columns(),
         max_rows=50,

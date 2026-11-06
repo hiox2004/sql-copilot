@@ -21,6 +21,8 @@ import sqlglot
 from sqlglot import exp
 from sqlglot.errors import SqlglotError
 
+from t2sql.dialects.base import Dialect, GuardPolicy
+
 DEFAULT_MAX_ROWS = 1000
 
 # Anything that writes, changes structure, changes settings or runs a command.
@@ -44,13 +46,6 @@ _FORBIDDEN_NODES: tuple[type[exp.Expression], ...] = (
     exp.Use,
 )
 
-# Function names (lowercase) that are never allowed, plus prefixes that cover whole families.
-_BLOCKED_FUNCTIONS = frozenset(
-    {"set_config", "current_setting", "dblink", "query_to_xml", "xpath", "version"}
-)
-_BLOCKED_FUNCTION_PREFIXES = ("pg_", "lo_", "dblink_", "txid_")
-_SYSTEM_SCHEMAS = frozenset({"pg_catalog", "information_schema", "pg_toast"})
-
 
 class GuardViolation(Exception):
     """The SQL was refused. `rule` is a short machine-friendly name; the message explains."""
@@ -70,12 +65,13 @@ class GuardResult:
 def guard_sql(
     sql: str,
     *,
-    sqlglot_dialect: str,
+    dialect: Dialect,
     allowed_tables: Collection[str],
     blocked_columns: Collection[tuple[str, str]] = (),
     max_rows: int = DEFAULT_MAX_ROWS,
 ) -> GuardResult:
-    tree = _parse_single_statement(sql, sqlglot_dialect)
+    tree = _parse_single_statement(sql, dialect.sqlglot_name)
+    policy = dialect.guard_policy
 
     if not isinstance(tree, exp.Select | exp.Union | exp.Subquery):
         raise GuardViolation("not_select", f"only SELECT is allowed, got {type(tree).__name__}")
@@ -86,11 +82,11 @@ def guard_sql(
                 "forbidden_statement", f"{type(node).__name__} is not allowed in a query"
             )
         if isinstance(node, exp.Func):
-            _check_function(node)
+            _check_function(node, policy)
 
-    tables = _check_tables(tree, {t.lower() for t in allowed_tables})
+    tables = _check_tables(tree, {t.lower() for t in allowed_tables}, policy)
     _check_pii(tree, tables, {(t.lower(), c.lower()) for t, c in blocked_columns})
-    return _enforce_limit(tree, sqlglot_dialect, max_rows)
+    return _enforce_limit(tree, dialect.sqlglot_name, max_rows)
 
 
 def _parse_single_statement(sql: str, dialect: str) -> exp.Expression:
@@ -104,13 +100,15 @@ def _parse_single_statement(sql: str, dialect: str) -> exp.Expression:
     return statements[0]
 
 
-def _check_function(node: exp.Func) -> None:
+def _check_function(node: exp.Func, policy: GuardPolicy) -> None:
     name = (node.name if isinstance(node, exp.Anonymous) else node.sql_name()).lower()
-    if name in _BLOCKED_FUNCTIONS or name.startswith(_BLOCKED_FUNCTION_PREFIXES):
+    if name in policy.blocked_functions or name.startswith(policy.blocked_function_prefixes):
         raise GuardViolation("blocked_function", f"function {name}() is not allowed")
 
 
-def _check_tables(tree: exp.Expression, allowed: set[str]) -> dict[str, str]:
+def _check_tables(
+    tree: exp.Expression, allowed: set[str], policy: GuardPolicy
+) -> dict[str, str]:
     """Return {alias or name: real table name} and reject unknown or system tables."""
     cte_names = {cte.alias_or_name.lower() for cte in tree.find_all(exp.CTE)}
     scope: dict[str, str] = {}
@@ -118,7 +116,8 @@ def _check_tables(tree: exp.Expression, allowed: set[str]) -> dict[str, str]:
         if isinstance(table.this, exp.Func):
             continue  # a table-valued function such as generate_series(); _check_function vets it
         name = table.name.lower()
-        if table.db and table.db.lower() in _SYSTEM_SCHEMAS or name.startswith("pg_"):
+        in_system_schema = bool(table.db) and table.db.lower() in policy.system_schemas
+        if in_system_schema or name.startswith(policy.system_table_prefixes):
             raise GuardViolation("system_table", f"system table {name!r} is not allowed")
         if name in cte_names and not table.db:
             continue  # a reference to a WITH ... AS name, not a real table
