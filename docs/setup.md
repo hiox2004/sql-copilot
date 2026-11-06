@@ -19,7 +19,7 @@ Last updated: 2026-11-06.
 | Guard (`validation/guard.py`) and executor (`validation/executor.py`) | Done, tested against the red-team set | (library code, no setup) |
 | GitHub Actions CI (`.github/workflows/ci.yml`) | Written, **not yet run on GitHub** | [CI](#continuous-integration-ci) |
 | Draft dictionary generator (`scripts/draft_dictionary.py`) | Done | [Draft dictionary](#draft-dictionary-generator) |
-| llama.cpp (local model serving) | Planned | [Planned](#planned-setups-not-done-yet) |
+| llama.cpp + Qwen2.5-Coder-1.5B GGUF (local model serving) | Downloaded by script, pinned and checksum-verified | [Local model serving](#local-model-serving-llamacpp) |
 | Colab/Kaggle (training) | Planned | [Planned](#planned-setups-not-done-yet) |
 
 ## Prerequisites
@@ -189,6 +189,44 @@ docker exec t2sql-postgres psql -U admin -d saas -c "GRANT SELECT ON ALL TABLES 
 
 `saas_old` is the previous version; drop it (`DROP DATABASE saas_old`) once you are sure. A fresh volume (`down -v`, `up -d`) always builds the current seed files.
 
+## Local model serving (llama.cpp)
+
+The copilot talks to a local model server over an OpenAI-compatible HTTP API (`LLM_BASE_URL`, default `http://localhost:8080/v1`). Two scripts manage it; nothing is installed system-wide.
+
+```
+bash scripts/setup_llama.sh     # once: download + verify + extract (about 1.8 GB)
+bash scripts/start_llama.sh     # run the server on 127.0.0.1:8080 (Ctrl+C to stop)
+```
+
+### Exactly what is downloaded, and from where
+
+| File | Size | Source | SHA-256 (verified by the script) |
+|---|---|---|---|
+| `llama-b12175-bin-win-cuda-12.4-x64.zip` (llama.cpp build b12175, Windows x64, CUDA 12.4) | 289 MB | `github.com/ggml-org/llama.cpp/releases/download/b12175/` | `cc6d557c...c39c0985` |
+| `cudart-llama-bin-win-cuda-12.4-x64.zip` (CUDA 12.4 runtime DLLs) | 391 MB | same release | `8c79a9b2...e32ae1d6` |
+| `qwen2.5-coder-1.5b-instruct-q4_k_m.gguf` (the model, 4-bit) | 1.1 GB | `huggingface.co/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF`, pinned to commit `f86cb2c1...` | `cc324af0...933bb046` |
+
+Full hashes are in `scripts/setup_llama.sh`. Licence of the model: Apache-2.0 (not gated, checked 2026-11-06). llama.cpp is MIT. Note: llama.cpp "releases" are automated nightly builds (all marked pre-release), so the build is pinned by tag.
+
+### Where it lands (all gitignored, never committed)
+
+| Path | Content |
+|---|---|
+| `tools/downloads/` | The two zip files, kept so re-runs need no re-download |
+| `tools/llama.cpp/b12175/` | Extracted binaries (`llama-server.exe`, ...) plus the CUDA DLLs next to them |
+| `models/qwen2.5-coder-1.5b-instruct/` | The GGUF model file |
+
+### Why these choices
+- **CUDA 12.4 build:** the NVIDIA driver here (580.x) supports CUDA 13.0, and a 12.4 build runs on it. The 13.5 build might need a newer driver, so it is avoided.
+- **Q4_K_M:** the usual balance of size and quality; 1.1 GB leaves plenty of the 4 GB VRAM for the context.
+- **Fallback:** if the GPU build misbehaves, the Vulkan build (`llama-b12175-bin-win-vulkan-x64.zip`, 38 MB, no CUDA runtime needed) works on NVIDIA too; swap the zip name and hash in the script.
+- **Verification:** every download is checked against a pinned SHA-256 and deleted on mismatch; extraction is repeated whenever its stamp file (`tools/llama.cpp/b12175/.extracted-from`) is missing or differs. The hashes come from GitHub's and Hugging Face's own metadata recorded on 2026-11-06 (trust on first download, not an independent signature), and the extracted executable is not re-hashed at start-up. The server binds to `127.0.0.1` only.
+- **Re-running** the setup script is safe: valid files are skipped.
+
+### Measuring the model (baseline)
+
+With the database up and the server running: `python scripts/run_baseline.py --mode all` (whole schema in the prompt) and `--mode oracle` (only the tables each golden answer needs, i.e. what perfect retrieval would give). Results go to `eval/results/`. The prompt also contains the dictionary's reference SQL for metrics, as production will, so metric-style questions are partly answered in the prompt; read scores with that in mind.
+
 ## Draft dictionary generator
 
 Reads the live database structure (as the read-only role; no rows) and writes a draft dictionary for a person to complete. Needs the database running and `pip install -e ".[dev]"` done (this adds `sqlglot`).
@@ -228,7 +266,6 @@ Study material: open `docs/study-guide.html` in a browser (single self-contained
 
 These are decided but not installed. Each gets a full section above when it is done.
 
-- **llama.cpp** for local model serving: `llama-server` with a GGUF file on the 4 GB GPU, OpenAI-compatible API on `localhost:8080`. Native Windows binary, not Docker.
 - **Colab / Kaggle** notebooks for QLoRA training (free GPU). Output is converted to GGUF locally.
 - **Retrieval libraries** (sentence-transformers, rank_bm25, networkx) and **LangGraph / FastAPI / Streamlit** as those stages are built.
 - **CI** (GitHub Actions): not started.
