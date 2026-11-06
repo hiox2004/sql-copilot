@@ -4,7 +4,8 @@ Usage (database up, model server running, golden files present):
     python scripts/run_baseline.py --mode all       # whole schema in the prompt (no retrieval)
     python scripts/run_baseline.py --mode oracle    # only the tables the golden SQL uses
                                                     # (what perfect retrieval would give)
-Options: --split dev|test|all, --limit N (first N items), --out FILE, --label TEXT, --max-tokens N.
+Options: --repair (verify + up to 2 repair retries), --split dev|test|all, --limit N,
+--out FILE, --label TEXT, --max-tokens N.
 Writes eval/results/<label>.json and prints a summary.
 
 Funnel per question: JSON valid -> Guard passes -> executes -> rows match the golden answer.
@@ -25,14 +26,16 @@ from t2sql.core.config import REPO_ROOT, Settings
 from t2sql.core.profile import load_profile
 from t2sql.core.result_compare import results_match
 from t2sql.dialects import get_dialect
-from t2sql.generation.client import ModelServerError, chat, parse_model_json
+from t2sql.generation.client import ModelServerError, chat
 from t2sql.generation.prompt import PROMPT_VERSION, build_messages
+from t2sql.graph.repair import MAX_RETRIES, generate_with_repair
 from t2sql.retrieval.context import render_context
 from t2sql.retrieval.dictionary import load_dictionary
 from t2sql.validation.executor import QueryTimeout, run_guarded
 from t2sql.validation.golden import load_all_golden
-from t2sql.validation.guard import GuardViolation, guard_sql
+from t2sql.validation.guard import guard_sql
 from t2sql.validation.splits import split_of
+from t2sql.validation.verify import repair_hint, verify_sql
 
 
 def tables_in(sql: str, dialect: str, known: set[str]) -> set[str]:
@@ -56,6 +59,7 @@ def main() -> int:
         default="all",
         help="dev for tuning; test only for final numbers (see t2sql.validation.splits)",
     )
+    parser.add_argument("--repair", action="store_true", help="verify + up to 2 repair retries")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--label", default="")
     parser.add_argument("--max-tokens", type=int, default=512)
@@ -78,6 +82,11 @@ def main() -> int:
         "blocked_columns": dictionary.blocked_columns(),
     }
 
+    verify_kwargs = {
+        "dialect": dialect,
+        "allowed_tables": known,
+        "blocked_columns": dictionary.blocked_columns(),
+    }
     records = []
     with psycopg.connect(settings.ro_dsn) as conn:
         schema = dialect.introspect(conn, profile.schema_name)
@@ -88,27 +97,53 @@ def main() -> int:
                 tables = tables_in(item.sql, dialect.sqlglot_name, known)
             context = render_context(schema, dictionary, settings.ref_now, tables)
             record = {"id": item.id, "difficulty": item.difficulty, "template": item.template}
+            messages = build_messages(item.question, context, settings.ref_now)
+            replies = []
+
+            def ask(msgs, replies=replies):
+                reply = chat(settings.llm_base_url, msgs, max_tokens=args.max_tokens)
+                replies.append(reply)
+                return reply
+
+            def verify(sql):
+                return verify_sql(conn, sql, **verify_kwargs)
+
+            def hint(error, sql):
+                return repair_hint(
+                    error,
+                    sql,
+                    schema,
+                    sqlglot_dialect=dialect.sqlglot_name,
+                    blocked_columns=dictionary.blocked_columns(),
+                )
+
             try:
-                reply = chat(
-                    settings.llm_base_url,
-                    build_messages(item.question, context, settings.ref_now),
-                    max_tokens=args.max_tokens,
+                outcome = generate_with_repair(
+                    messages,
+                    ask=ask,
+                    verify=verify,
+                    hint=hint,
+                    max_retries=MAX_RETRIES if args.repair else 0,
                 )
             except ModelServerError as exc:
                 print(f"model server problem: {exc}", file=sys.stderr)
                 return 1
-            record.update(seconds=round(reply.seconds, 2), prompt_tokens=reply.prompt_tokens)
-            data = parse_model_json(reply.text)
+            seconds = outcome.seconds
+            record.update(
+                seconds=round(seconds, 2),
+                prompt_tokens=replies[0].prompt_tokens,
+                attempts=len(outcome.attempts),
+            )
+            data = outcome.data
             record["json_ok"] = data is not None
             record["stage"] = "json"
             if data is not None:
-                record["sql"] = data["sql"]
-                try:
-                    guarded = guard_sql(data["sql"], **guard_kwargs)
+                record["sql"] = outcome.attempts[-1].sql
+                if outcome.ok:
                     record["guard_ok"] = True
                     record["stage"] = "guard"
                     try:
-                        actual = run_guarded(conn, guarded.sql)
+                        actual = run_guarded(conn, outcome.sql)
                         record["exec_ok"] = True
                         record["stage"] = "exec"
                         record["match"] = results_match(
@@ -120,14 +155,15 @@ def main() -> int:
                     except psycopg.Error as exc:
                         conn.rollback()
                         record["error"] = str(exc).strip().splitlines()[0][:150]
-                except GuardViolation as exc:
+                else:
                     record["guard_ok"] = False
-                    record["error"] = f"guard:{exc.rule}"
+                    record["error"] = "verify:" + outcome.attempts[-1].error[:150]
             else:
-                record["raw"] = reply.text[:200]
+                record["raw"] = replies[-1].text[:200]
+            record["first_try_ok"] = outcome.attempts[0].error == "" if outcome.attempts else False
             records.append(record)
             flag = "MATCH" if record.get("match") else record["stage"]
-            print(f"[{n}/{len(golden)}] {item.id}: {flag} ({reply.seconds:.1f}s)", flush=True)
+            print(f"[{n}/{len(golden)}] {item.id}: {flag} ({seconds:.1f}s)", flush=True)
 
     total = len(records)
     pct = lambda k: 100 * sum(1 for r in records if r.get(k)) / total  # noqa: E731
@@ -139,6 +175,7 @@ def main() -> int:
         "label": label,
         "mode": args.mode,
         "split": args.split,
+        "repair": args.repair,
         "prompt_version": PROMPT_VERSION,
         "date": datetime.now(UTC).isoformat(timespec="seconds"),
         "n": total,

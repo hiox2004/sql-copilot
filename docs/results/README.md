@@ -17,6 +17,8 @@ prompt version, model file and mode were used. Never edit an old entry; add a ne
 |---|------|--------|-------|--------|------|-----------|----------|-------|-------|
 | 001 | 2026-11-06 | First baseline, no retrieval, no repair | Qwen2.5-Coder-1.5B Q4_K_M | v1 | all tables | 52% | 76% | 4.5 | [001](001-first-baseline.md) |
 | 001 | 2026-11-06 | same, perfect (oracle) table choice | same | v1 | oracle | 54% | 86% | 4.2 | [001](001-first-baseline.md) |
+| 002 | 2026-11-07 | Dev split, no repair (control) | same | v1 | all, dev n=33 | 51.5% | 75.8% | 4.2 | [002](002-repair-loop.md) |
+| 002 | 2026-11-07 | + verify and repair (max 2 retries) | same | v1 | all, dev n=33 | 54.5% | 90.9% | 12.4 | [002](002-repair-loop.md) |
 
 Targets (v1, agreed 2026-11-05, still a guess): >= 70% on held-out templates, p95 < 10 s, 100% of
 red-team attacks blocked.

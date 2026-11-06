@@ -45,6 +45,15 @@ OUTPUT_SCHEMA = {
 }
 
 
+def build_repair_message(error: str, hint: str) -> dict[str, str]:
+    """Follow-up turn after a failed attempt: the error, real facts, and the same output format."""
+    text = f"That query failed: {error}\n"
+    if hint:
+        text += f"Facts about the real schema:\n{hint}\n"
+    text += "Fix it. Use only real tables and columns. Reply with the same JSON format."
+    return {"role": "user", "content": text}
+
+
 def build_messages(question: str, context: str, today: datetime) -> list[dict[str, str]]:
     """Chat messages for the model: system rules, then context and question."""
     if today.tzinfo is None:

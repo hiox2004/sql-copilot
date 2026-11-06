@@ -3,7 +3,7 @@
 Everything needed to get this project running on a fresh Windows machine, and how each piece works.
 **This file is a living document:** every new setup step (tools, services, environments) is appended here when it is introduced.
 
-Last updated: 2026-11-06.
+Last updated: 2026-11-07.
 
 ## Status at a glance
 
@@ -225,7 +225,7 @@ Full hashes are in `scripts/setup_llama.sh`. Licence of the model: Apache-2.0 (n
 
 ### Measuring the model (baseline)
 
-With the database up and the server running: `python scripts/run_baseline.py --mode all` (whole schema in the prompt) and `--mode oracle` (only the tables each golden answer needs, i.e. what perfect retrieval would give). Results go to `eval/results/`. The prompt also contains the dictionary's reference SQL for metrics, as production will, so metric-style questions are partly answered in the prompt; read scores with that in mind.
+With the database up and the server running: `python scripts/run_baseline.py --mode all` (whole schema in the prompt) and `--mode oracle` (only the tables each golden answer needs, i.e. what perfect retrieval would give). Results go to `eval/results/`. Extra flags: `--split dev|test|all` (tune on dev; use test only for final numbers), `--repair` (EXPLAIN check plus up to 2 repair retries), `--label NAME`. Every experiment gets an entry in `docs/results/`. The prompt also contains the dictionary's reference SQL for metrics, as production will, so metric-style questions are partly answered in the prompt; read scores with that in mind.
 
 ## Draft dictionary generator
 

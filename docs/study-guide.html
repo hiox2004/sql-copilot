@@ -96,7 +96,7 @@ button.t{font:500 .8rem var(--body);border:1px solid var(--line);background:var(
   <div class="grp">Basics</div>
   <a href="#sql">SQL &amp; Postgres</a><a href="#llm">LLM basics</a><a href="#t2s">Text-to-SQL</a><a href="#docker">Docker</a><a href="#pyproj">Python project setup</a><a href="#schema">Schema design</a><a href="#dbtools">DB snapshots &amp; browsing</a><a href="#claude">Claude Code setup</a><a href="#hw">Your hardware</a>
   <div class="grp">Working</div>
-  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#dict3">Dictionary: models &amp; loader</a><a href="#dict4">Dictionary: introspection</a><a href="#dict5">Dictionary: content &amp; DB tests</a><a href="#seedfix">Seed fix</a><a href="#redteam">Red-team set</a><a href="#guardbuilt">Guard (built)</a><a href="#guardreview">Guard review</a><a href="#evalset">Golden set</a><a href="#baseline">Baseline</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
+  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#dict3">Dictionary: models &amp; loader</a><a href="#dict4">Dictionary: introspection</a><a href="#dict5">Dictionary: content &amp; DB tests</a><a href="#seedfix">Seed fix</a><a href="#redteam">Red-team set</a><a href="#guardbuilt">Guard (built)</a><a href="#guardreview">Guard review</a><a href="#evalset">Golden set</a><a href="#baseline">Baseline</a><a href="#repair">Verify &amp; repair</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
   <div class="grp">Advanced</div>
   <a href="#adv">Advanced topics</a><a href="#rl">SFT, GRPO, voting</a><a href="#fail">Failure modes</a>
   <div class="grp">Review</div>
@@ -783,7 +783,7 @@ enums:
       <tr><td>Rounding mismatch</td><td>golden 19.4, true 19.39, a model answering 19.39 fails</td><td>Compare numbers with a 0.05 tolerance instead of rounding both sides</td></tr>
     </tbody></table></div>
   <h3>The scoring rule (execution accuracy)</h3>
-  <p>Rows are compared, not SQL text. Columns match by position and count; row order is ignored unless the question is a ranking; numbers match within 0.05; booleans never equal numbers (in Python <code>True == 1</code>, a bug our own test caught); dates compare as text. Percent and fraction are different answers on purpose.</p>
+  <p>Rows are compared, not SQL text. Columns match in any order but their count must agree; row order is ignored unless the question is a ranking; numbers match within 0.05; booleans never equal numbers (in Python <code>True == 1</code>, a bug our own test caught); dates compare as text. Percent and fraction are different answers on purpose.</p>
   <div class="callout warn"><b>Seed artifacts the writers noticed:</b> all 133 lost sales deals share one close date, and two marketing channels show 100% lead conversion. These make some questions weak tests and are on the list to fix in the seed.</div>
 </section>
 
@@ -807,6 +807,16 @@ enums:
   </ul>
   <div class="callout tip"><b>Two measurement bugs we hit and fixed first.</b> (1) The model rambled inside <code>assumptions</code> until the token limit cut the JSON off, which would have counted valid answers as failures and inflated latency; the output schema now bounds it. (2) The comparison rounded both sides to 2 decimals, marking 19.4 wrong against 19.39; it now uses a tolerance. Always sanity-check the measuring instrument before trusting its reading.</div>
 </section>
+
+<section id="repair">
+  <span class="lvl l-w">Working</span>
+  <h2>Verify and repair: trust, but let the database check</h2>
+  <p><b>Idea:</b> a small model often invents a column. Ask the database to <i>plan</i> the query (<code>EXPLAIN</code>, never <code>EXPLAIN ANALYZE</code>, which would run it). Planning is milliseconds and finds bad columns, bad types and bad syntax. If it fails, send the model the error plus real facts (the true column list of the tables it used, and which table a missing column actually lives in) and let it retry, at most twice.</p>
+  <p><b>Analogy:</b> a spell-checker that also hands you the dictionary page. Files: <code>validation/verify.py</code> (Guard, then EXPLAIN, then hints), <code>graph/repair.py</code> (the bounded loop, tested with fake model and DB), <code>build_repair_message</code> in the one prompt builder.</p>
+  <div class="callout"><b>What we measured (dev split, 33 questions):</b> queries that run rose 76% to 91%, but correct answers only 51.5% to 54.5% (one question). Most remaining mistakes are <i>valid but wrong</i> SQL (wrong filter, wrong definition), which no error message can reveal. Retries also pushed p95 latency from 4.2 s to 12.4 s, over the 10 s budget. So repair is a safety net that hides crashes, not an accuracy lever; fine-tuning is the lever.</div>
+  <div class="callout warn"><b>Gotchas:</b> (1) database errors for <code>alias.column</code> have no quotes, so our first hint pattern missed exactly the hard cases; (2) hints must never list personal columns; (3) the dev/test split (<code>validation/splits.py</code>, fixed hash of the template name) exists so we tune on dev and spend test only once.</div>
+</section>
+
 
 <section id="ft">
   <span class="lvl l-w">Working</span>
