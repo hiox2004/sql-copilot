@@ -17,7 +17,7 @@ Last updated: 2026-11-06.
 | Claude Code tutor agent + `teach` skill | Done | [Claude Code](#claude-code) |
 | `pyproject.toml`, pytest, ruff, VS Code interpreter setting | Done (204 tests passing) | [Python](#python-environment) |
 | Guard (`validation/guard.py`) and executor (`validation/executor.py`) | Done, tested against the red-team set | (library code, no setup) |
-| GitHub Actions CI (`.github/workflows/ci.yml`) | Written, **not yet run on GitHub** | [CI](#continuous-integration-ci) |
+| GitHub Actions CI (`.github/workflows/ci.yml`) | Done: first green run 2026-11-06 (34 s) | [CI](#continuous-integration-ci) |
 | Draft dictionary generator (`scripts/draft_dictionary.py`) | Done | [Draft dictionary](#draft-dictionary-generator) |
 | llama.cpp + Qwen2.5-Coder-1.5B GGUF (local model serving) | Downloaded by script, pinned and checksum-verified | [Local model serving](#local-model-serving-llamacpp) |
 | Colab/Kaggle (training) | Planned | [Planned](#planned-setups-not-done-yet) |
@@ -174,7 +174,7 @@ Three ways the data is "saved": the seed files in git are the recipe (source of 
 
 ## Continuous integration (CI)
 
-`.github/workflows/ci.yml` runs on every push to `main` and every pull request: install the package, `ruff check .`, start the same Docker Compose database used locally (`cp .env.example .env`, `up -d --wait`, which also runs the consistency checks), then `pytest` (unit and database-backed integration tests). Status: written but **unverified until the first push** shows a green run. If it fails, the last step prints the database log.
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request: install the package, `ruff check .`, start the same Docker Compose database used locally (`cp .env.example .env`, `up -d --wait`, which also runs the consistency checks), then `pytest` (unit and database-backed integration tests). Status: **verified**: the first run on 2026-11-06 passed lint, the database build and all tests in 34 seconds. If a run fails, the last step prints the database log. GitHub warns that Node 20 actions (`checkout@v4`, `setup-python@v5`) are deprecated; bump the versions when newer ones are confirmed.
 
 ## Swapping in a rebuilt database without losing the old one
 
