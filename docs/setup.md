@@ -3,7 +3,7 @@
 Everything needed to get this project running on a fresh Windows machine, and how each piece works.
 **This file is a living document:** every new setup step (tools, services, environments) is appended here when it is introduced.
 
-Last updated: 2026-11-05.
+Last updated: 2026-11-06.
 
 ## Status at a glance
 
@@ -15,7 +15,8 @@ Last updated: 2026-11-05.
 | pgAdmin (database browser) | Done, optional | [pgAdmin](#pgadmin-optional-database-browser) |
 | Snapshots and scratch database | Done | [Snapshots](#snapshots-and-the-scratch-database) |
 | Claude Code tutor agent + `teach` skill | Done | [Claude Code](#claude-code) |
-| `pyproject.toml`, pytest, ruff, VS Code interpreter setting | Done (31 tests passing) | [Python](#python-environment) |
+| `pyproject.toml`, pytest, ruff, VS Code interpreter setting | Done (61 tests passing) | [Python](#python-environment) |
+| Draft dictionary generator (`scripts/draft_dictionary.py`) | Done | [Draft dictionary](#draft-dictionary-generator) |
 | llama.cpp (local model serving) | Planned | [Planned](#planned-setups-not-done-yet) |
 | Colab/Kaggle (training) | Planned | [Planned](#planned-setups-not-done-yet) |
 
@@ -89,7 +90,13 @@ Then edit the passwords. `.env` is gitignored; `.env.example` is the committed t
 | `COPILOT_RO_USER`, `COPILOT_RO_PASSWORD` | The **read-only** role the copilot uses at run time |
 | `PGADMIN_EMAIL`, `PGADMIN_PASSWORD` | Only used by the optional pgAdmin container |
 
-Optional override read by the DB loader: `REF_NOW` (the pinned "today", default `2026-11-05 12:00:00+00`).
+Optional overrides (all have defaults; read by `t2sql.core.config.Settings`):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `REF_NOW` | `2026-11-05 12:00:00+00` | The pinned "today". Must include a timezone. Also read by the DB loader script; a unit test keeps the two defaults equal |
+| `DB_HOST` | `127.0.0.1` | Database host. Do not use `localhost` on Windows: it tries IPv6 first and hangs |
+| `LLM_BASE_URL` | `http://localhost:8080/v1` | OpenAI-compatible model server (llama.cpp, later) |
 
 ## Docker Compose
 
@@ -163,6 +170,16 @@ Three ways the data is "saved": the seed files in git are the recipe (source of 
 
 `restore_db.sh` refuses to overwrite the main database. Experiment (INSERT/UPDATE/DELETE, broken queries) only in `saas_scratch`; the copilot itself only uses the read-only role on `saas`.
 
+## Draft dictionary generator
+
+Reads the live database structure (as the read-only role; no rows) and writes a draft dictionary for a person to complete. Needs the database running and `pip install -e ".[dev]"` done (this adds `sqlglot`).
+
+```
+python scripts/draft_dictionary.py saas      # -> data/dictionaries/saas.draft.yaml
+```
+
+The profile `data/profiles/saas.yaml` says which dialect and schema to read. `*.draft.yaml` is gitignored (regenerate any time); the finished `saas.yaml` is what gets committed. Pipe-free and safe to re-run: it only overwrites the draft file.
+
 ## Claude Code
 
 | File | Role |
@@ -185,6 +202,7 @@ Study material: open `docs/study-guide.html` in a browser (single self-contained
 | `.sh` script fails with `\r: command not found` | CRLF line endings. Run `sed -i 's/\r$//' <file>`; `.gitattributes` prevents it for new checkouts |
 | Port 5432 or 5050 already in use | Change `POSTGRES_PORT` in `.env`, or stop the other program |
 | VS Code shows "Unresolved import: yaml / pydantic" though tests pass | The editor is using a different Python. `.vscode/settings.json` points it at `.venv`; if it still shows, press Ctrl+Shift+P, "Python: Select Interpreter", choose `.venv`, then "Developer: Reload Window" |
+| A Python script that connects to the DB hangs for a long time | Host was `localhost` (IPv6 first). Use `127.0.0.1` (the default in `Settings`) |
 | Windows blocks `Activate.ps1` | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
 
 ## Planned setups (not done yet)

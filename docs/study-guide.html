@@ -96,7 +96,7 @@ button.t{font:500 .8rem var(--body);border:1px solid var(--line);background:var(
   <div class="grp">Basics</div>
   <a href="#sql">SQL &amp; Postgres</a><a href="#llm">LLM basics</a><a href="#t2s">Text-to-SQL</a><a href="#docker">Docker</a><a href="#pyproj">Python project setup</a><a href="#schema">Schema design</a><a href="#dbtools">DB snapshots &amp; browsing</a><a href="#claude">Claude Code setup</a><a href="#hw">Your hardware</a>
   <div class="grp">Working</div>
-  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#dict3">Dictionary: models &amp; loader</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
+  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#dict3">Dictionary: models &amp; loader</a><a href="#dict4">Dictionary: introspection</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
   <div class="grp">Advanced</div>
   <a href="#adv">Advanced topics</a><a href="#rl">SFT, GRPO, voting</a><a href="#fail">Failure modes</a>
   <div class="grp">Review</div>
@@ -608,6 +608,42 @@ enums:
   <p class="count" style="font-size:.8rem;color:var(--muted)">Not covered yet: checking names against the real database (tables, columns, enum values, running each metric). That is step 5.</p>
 </section>
 
+<section id="dict4">
+  <span class="lvl l-w">Working</span>
+  <h2>Dictionary step 3: introspection and the draft</h2>
+  <p class="lead"><b>Introspection</b> means asking the database to describe itself. Postgres keeps a catalog (<code>pg_class</code>, <code>pg_attribute</code>, <code>pg_constraint</code>) listing every table, column, key and CHECK rule. We read that catalog, never the rows, and use it to write a <b>draft</b> dictionary. Names then come from the database instead of from typing, so a typo like <code>organisations</code> cannot get in at the source.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 760 150" role="img" aria-label="Catalog through the dialect adapter to SchemaInfo and a draft dictionary">
+    <defs><marker id="e4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="6" y="40" width="130" height="60" rx="10" class="f-blue"/><text x="71" y="66" text-anchor="middle" font-size="12" font-weight="700">Postgres catalog</text><text x="71" y="84" text-anchor="middle" font-size="10" class="sub">structure, no rows</text>
+    <path d="M136 70H160" class="line" marker-end="url(#e4)"/>
+    <rect x="162" y="40" width="150" height="60" rx="10" class="f-amber"/><text x="237" y="62" text-anchor="middle" font-size="12" font-weight="700">Postgres adapter</text><text x="237" y="79" text-anchor="middle" font-size="10" class="sub">implements Dialect</text><text x="237" y="92" text-anchor="middle" font-size="10" class="sub">dialects/postgres/</text>
+    <path d="M312 70H336" class="line" marker-end="url(#e4)"/>
+    <rect x="338" y="40" width="150" height="60" rx="10" class="f-violet"/><text x="413" y="62" text-anchor="middle" font-size="12" font-weight="700">SchemaInfo</text><text x="413" y="79" text-anchor="middle" font-size="10" class="sub">neutral dataclasses</text><text x="413" y="92" text-anchor="middle" font-size="10" class="sub">core/schema_models.py</text>
+    <path d="M488 70H512" class="line" marker-end="url(#e4)"/>
+    <rect x="514" y="40" width="240" height="60" rx="10" class="f-green"/><text x="634" y="62" text-anchor="middle" font-size="12" font-weight="700">saas.draft.yaml</text><text x="634" y="79" text-anchor="middle" font-size="10" class="sub">facts filled in, TODO for the rest</text><text x="634" y="92" text-anchor="middle" font-size="10" class="sub">a human completes it (step 4)</text>
+  </svg></div>
+  <h3>The pieces and why each exists</h3>
+  <div class="tablebox"><table>
+    <thead><tr><th>File</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><code>dialects/base.py</code></td><td>The <b>Dialect Protocol</b>: the contract every database adapter meets (<code>introspect</code>, <code>explain_statement</code>, a sqlglot name). A Protocol says "anything with these methods counts", with no inheritance. The pipeline talks to a Dialect, never to Postgres directly</td></tr>
+      <tr><td><code>dialects/postgres/introspect.py</code></td><td>The catalog queries. Reads columns, primary keys, foreign keys (multi-column ones grouped), and CHECK constraints. <code>parse_enum_check</code> turns <code>status = ANY (ARRAY['open', ...])</code> into a list of allowed values and ignores range and cross-column checks</td></tr>
+      <tr><td><code>core/schema_models.py</code></td><td>Plain frozen dataclasses (<code>SchemaInfo</code>, <code>TableInfo</code>, <code>ColumnInfo</code>, <code>ForeignKey</code>) that every database maps into. Dataclasses, not Pydantic: our own code produces them, so nothing needs validating</td></tr>
+      <tr><td><code>core/config.py</code></td><td>One place that reads <code>.env</code>: database logins, the model-server URL, and the pinned "today" as a timezone-aware datetime</td></tr>
+      <tr><td><code>core/profile.py</code> + <code>data/profiles/saas.yaml</code></td><td>The profile: which dialect, which schema, where the dictionary lives. A second database means a second profile</td></tr>
+      <tr><td><code>retrieval/draft_dictionary.py</code> + <code>scripts/draft_dictionary.py</code></td><td>Turn a <code>SchemaInfo</code> into draft YAML. Only enum columns, money columns (<code>*_cents</code>) and suspected personal data get an entry, so the dictionary stays small</td></tr>
+    </tbody></table></div>
+  <h3>Two ideas worth remembering</h3>
+  <div class="grid">
+    <div class="card"><span class="chip c-green">Structure is not data</span><p>Allowed values come from CHECK constraints (the schema), not from <code>SELECT DISTINCT</code> on rows. That respects the rule "never index row data or personal data", and the values are guaranteed complete because the database enforces them.</p></div>
+    <div class="card"><span class="chip c-rose">Heuristics need a human</span><p>The generator flags columns named like <code>email</code>, <code>full_name</code> or <code>postal_code</code> as <code>pii: true  # TODO confirm</code>. It is a guess from names. A person confirms each flag in step 4 (for example <code>ip_country</code> is a coarse location, so is it personal?).</p></div>
+  </div>
+  <div class="callout warn"><b>Gotcha: <code>localhost</code> hung on Windows.</b> It resolves to IPv6 (<code>::1</code>) first, but Docker publishes the port on IPv4 only, so the connection waited instead of failing. Use <code>127.0.0.1</code>, and always set a <code>connect_timeout</code> so a down database fails in seconds, not minutes.</div>
+  <div class="callout tip"><b>Two places must agree, so a test guards them.</b> The pinned date lives in the Docker loader script and in <code>config.py</code>. A unit test reads the script and fails if the defaults differ. When duplication cannot be avoided, test it.</div>
+  <p class="count" style="font-size:.8rem;color:var(--muted)">61 tests pass (6 of them integration tests that read the live schema as the read-only role). Next: step 4, fill the draft by hand into <code>saas.yaml</code>.</p>
+</section>
+
 <section id="ft">
   <span class="lvl l-w">Working</span>
   <h2>Fine-tuning a small model with QLoRA</h2>
@@ -975,6 +1011,9 @@ httpx.post("http://localhost:8080/v1/chat/completions", json={
     <details><summary>26. What does "parse, don't validate" mean for the dictionary?</summary><p>Check the file once at load time and return a trusted, frozen object. Every other part of the system then uses it without re-checking, and a bad file fails immediately with a clear message instead of misbehaving later.</p></details>
     <details><summary>27. Why does the loader reject unknown fields and duplicate keys instead of tolerating them?</summary><p>Both mistakes are silent by default: a typo'd field is ignored and a duplicate key quietly overwrites the earlier one. Either would degrade answers with no error, so we make them loud.</p></details>
     <details><summary>28. What is the "Norway problem" and how do we defend against it?</summary><p>YAML 1.1 turns unquoted no/on/off/yes into booleans. Strict string fields reject the boolean, and the error tells the author to quote the value.</p></details>
+    <details><summary>29. A dictionary says <code>organisations</code> but the table is <code>organizations</code>. Which step catches it?</summary><p>Not the loader (step 2): the name is a valid identifier and the loader never sees the database. The step 5 tests do ("every dictionary table exists" and "every database table is covered"). Step 3's draft generator prevents it by copying names from the catalog.</p></details>
+    <details><summary>30. Why read allowed values from CHECK constraints instead of <code>SELECT DISTINCT</code>?</summary><p>CHECK constraints are structure, so no row data is touched, and they are complete by definition because the database enforces them. DISTINCT would read data, could miss rare values, and could leak personal data.</p></details>
+    <details><summary>31. Why define a <code>Dialect</code> Protocol instead of calling Postgres code directly?</summary><p>The pipeline then depends on a contract, not a database. A new database means one new adapter plus a profile and dictionary, with no change to retrieval, graph, API or UI.</p></details>
     <details><summary>20. Why do the golden answers need a pinned "today"?</summary><p>Questions like "churned this month" depend on the current date. If the data hangs off <code>NOW()</code>, the right answer changes every day and the eval expires. Pinning the date (2026-11-05, also injected into the prompt) keeps answers stable.</p></details>
     <details><summary>21. All 35 data checks passed on the first run. Why did we still corrupt the data on purpose?</summary><p>A check that can never fail proves nothing. Injecting known violations in a rolled-back transaction showed each check actually detects its rule.</p></details>
     <details><summary>22. What is a distractor table, and why add them?</summary><p>A plausibly named table that is wrong for a question (plans vs subscriptions, employees vs users). With only 8 tables retrieval is trivial; distractors make table-pruning quality measurable.</p></details>
@@ -1010,6 +1049,9 @@ httpx.post("http://localhost:8080/v1/chat/completions", json={
     <div><b>Strict mode</b> <span>Validation that refuses silent type conversions (e.g. a boolean where a string is expected).</span></div>
     <div><b>Parse, don't validate</b> <span>Turn untrusted input into a trusted typed object once, at the boundary.</span></div>
     <div><b>Norway problem</b> <span>YAML 1.1 reading unquoted NO/on/off/yes as booleans.</span></div>
+    <div><b>Introspection</b> <span>Asking the database to describe its own structure (tables, columns, keys, constraints) from the system catalog, without reading rows.</span></div>
+    <div><b>Protocol (Python)</b> <span>A contract of required attributes and methods; any class that has them satisfies it, no inheritance needed. Our <code>Dialect</code> is one.</span></div>
+    <div><b>Profile</b> <span>Small YAML naming a database's dialect, schema and dictionary path.</span></div>
     <div><b>Editable install</b> <span><code>pip install -e</code>: links the environment to your source folder so edits are live.</span></div>
     <div><b>pyproject.toml</b> <span>Single file declaring a Python project's metadata, dependencies and tool settings.</span></div>
     <div><b>pytest marker</b> <span>Label on a test (e.g. integration) used to select or skip groups of tests.</span></div>
