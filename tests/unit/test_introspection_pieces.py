@@ -12,7 +12,11 @@ from t2sql.core.schema_models import ColumnInfo, ForeignKey, SchemaInfo, TableIn
 from t2sql.dialects import get_dialect
 from t2sql.dialects.postgres.introspect import parse_enum_check
 from t2sql.retrieval.dictionary import parse_dictionary
-from t2sql.retrieval.draft_dictionary import draft_dictionary_yaml, looks_like_pii
+from t2sql.retrieval.draft_dictionary import (
+    draft_dictionary_yaml,
+    is_money_column,
+    looks_like_pii,
+)
 
 # ---------- CHECK constraint parsing ----------
 
@@ -139,6 +143,23 @@ def test_draft_leaves_plain_columns_out():
 @pytest.mark.parametrize("name", ["email", "contact_email", "full_name", "postal_code", "ip"])
 def test_pii_heuristic_flags(name):
     assert looks_like_pii(name)
+
+
+def test_pii_heuristic_flags_salary():
+    assert looks_like_pii("salary_cents")
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("amount_cents", True),
+        ("mrr_cents_before", True),
+        ("cents_per_unit", False),
+        ("percent_off", False),
+    ],
+)
+def test_money_column_detection(name, expected):
+    assert is_money_column(name) is expected
 
 
 @pytest.mark.parametrize("name", ["status", "trip_id", "description", "ship_date"])

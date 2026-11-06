@@ -1,0 +1,492 @@
+# Data dictionary for the demo SaaS database (36 tables). Parsed by t2sql.retrieval.dictionary.
+# Never put row data or real personal data here. Rules: see CLAUDE.md "Dictionary YAML".
+# {today} is replaced by a timestamptz literal for the pinned date (see core/metric_render.py).
+meta:
+  id: saas
+  dialect: postgres
+  version: 1
+
+global_rules:
+  - id: money_in_cents
+    text: "Money columns end in _cents (integer cents). Divide by 100.0 to report dollars."
+  - id: use_today
+    text: "Use the date given in the prompt as today. Never call NOW() or CURRENT_DATE."
+  - id: customer_is_organization
+    text: "A customer is an organization. Count customers with COUNT(DISTINCT org_id), not users."
+  - id: this_month
+    text: "This month means the calendar month of today in UTC. State it in assumptions."
+  - id: timestamps_utc
+    text: "All timestamps are timestamptz. Group and compare by day or month in UTC."
+
+tables:
+  addresses:
+    description: "Billing and shipping addresses of organizations. One organization can have several."
+    synonyms: [locations of customers]
+    columns:
+      kind:
+        description: "Purpose of the address."
+        values:
+          "billing": "used for invoices"
+          "shipping": "used for deliveries"
+      postal_code:
+        pii: true
+
+  api_keys:
+    description: "API keys issued to organizations. revoked_at is set once a key is revoked."
+    synonyms: [tokens, credentials]
+
+  api_requests_daily:
+    description: "Daily API traffic per API key: total requests and failed requests."
+    synonyms: [api usage, api traffic]
+
+  audit_log:
+    description: "Security and admin actions taken by users (who did what to which entity, and when)."
+    synonyms: [audit trail, activity log]
+
+  campaigns:
+    description: "Marketing campaigns with a channel and a budget."
+    synonyms: [marketing campaigns]
+    columns:
+      budget_cents:
+        unit: cents
+        description: "Planned spend."
+      channel:
+        description: "Marketing channel."
+        values:
+          "email": "email campaign"
+          "ads": "paid advertising"
+          "webinar": "webinar event"
+          "content": "content marketing"
+
+  coupon_redemptions:
+    description: "Each time an organization redeemed a coupon."
+    synonyms: [coupon usage]
+
+  coupons:
+    description: "Discount codes with a percent off, a validity window and a redemption limit."
+    synonyms: [discount codes, promo codes]
+
+  csat_surveys:
+    description: "Customer satisfaction survey sent after a ticket. score runs from 1 (worst) to 5 (best)."
+    synonyms: [satisfaction scores, csat]
+
+  departments:
+    description: "Internal company departments (HR side, not customers)."
+    synonyms: [company departments]
+
+  email_events:
+    description: "Marketing email activity per lead and campaign (sent, opened, clicked, unsubscribed)."
+    synonyms: [email engagement]
+    columns:
+      event_type:
+        description: "What happened to the email."
+        values:
+          "sent": "email delivered"
+          "opened": "recipient opened it"
+          "clicked": "recipient clicked a link"
+          "unsubscribed": "recipient opted out"
+
+  employees:
+    description: "Our own staff (HR data), not customers. terminated_at is set for people who left."
+    synonyms: [staff, workforce]
+    columns:
+      email:
+        pii: true
+      full_name:
+        pii: true
+      salary_cents:
+        pii: true
+        unit: cents
+        description: "Sensitive pay data. Never selected."
+
+  expense_reports:
+    description: "Expense claims submitted by employees."
+    synonyms: [expenses]
+    columns:
+      amount_cents:
+        unit: cents
+        description: "Claimed amount."
+      category:
+        description: "Expense type."
+        values:
+          "travel": "travel costs"
+          "software": "software purchases"
+          "meals": "meals"
+          "equipment": "equipment purchases"
+      status:
+        description: "Approval state."
+        values:
+          "submitted": "waiting for review"
+          "approved": "approved, not yet paid"
+          "rejected": "declined"
+          "paid": "reimbursed"
+
+  feature_flags:
+    description: "Internal on/off switches with a rollout percentage. Not product features customers use."
+    synonyms: [rollout flags, toggles]
+
+  feature_usage_daily:
+    description: "How often each organization used each product feature per day (event_count)."
+    synonyms: [feature adoption, product usage]
+
+  features:
+    description: "Catalog of product features customers can use (core, security, addon, ...)."
+    synonyms: [product features]
+
+  invoices:
+    description: "Bills for subscriptions. paid_at is set only when status is paid."
+    synonyms: [bills]
+    columns:
+      amount_cents:
+        unit: cents
+        description: "Invoice total."
+      status:
+        description: "Payment state of the invoice."
+        values:
+          "open": "issued, not yet paid"
+          "paid": "paid in full"
+          "void": "cancelled, nothing owed"
+
+  leads:
+    description: "Sales prospects, usually from a campaign. converted_org_id is set once they became a customer."
+    synonyms: [prospects]
+    columns:
+      contact_email:
+        pii: true
+      status:
+        description: "Lead funnel stage."
+        values:
+          "new": "just captured"
+          "qualified": "worth pursuing"
+          "converted": "became a customer"
+          "lost": "dropped out"
+
+  login_events:
+    description: "Every login attempt by a user. success is false for failed attempts."
+    synonyms: [logins, sign-ins]
+    columns:
+      ip_country:
+        description: "Country of the login (coarse location, not personal data)."
+
+  notifications:
+    description: "Messages sent to users in the product. read_at is empty until the user reads it."
+    synonyms: [alerts]
+    columns:
+      kind:
+        description: "Notification type."
+        values:
+          "invoice": "billing notice"
+          "security": "security alert"
+          "product": "product news"
+          "marketing": "promotional"
+
+  office_locations:
+    description: "Company offices (our own sites, not customer addresses)."
+    synonyms: [offices]
+
+  opportunities:
+    description: "Sales deals handled by a sales rep, with a pipeline stage and an expected amount."
+    synonyms: [deals, pipeline]
+    columns:
+      amount_cents:
+        unit: cents
+        description: "Expected deal value."
+      stage:
+        description: "Pipeline stage."
+        values:
+          "prospecting": "early contact"
+          "proposal": "proposal sent"
+          "negotiation": "terms under discussion"
+          "won": "deal closed, won"
+          "lost": "deal closed, lost"
+
+  order_items:
+    description: "Line items of an order: product, quantity and unit price at purchase time."
+    synonyms: [line items]
+    columns:
+      unit_price_cents:
+        unit: cents
+        description: "Price per unit when bought."
+
+  orders:
+    description: "One-off product purchases by an organization (separate from subscriptions)."
+    synonyms: [purchases]
+    columns:
+      status:
+        description: "Order state."
+        values:
+          "pending": "created, not paid"
+          "paid": "paid"
+          "refunded": "paid then refunded"
+          "canceled": "never completed"
+      total_cents:
+        unit: cents
+        description: "Order total."
+
+  org_settings:
+    description: "Key/value settings per organization. Keys: invoice_emails (on/off), locale, timezone."
+    synonyms: [organization preferences]
+
+  organizations:
+    description: "Customer companies. A customer is an organization."
+    synonyms: [customers, clients, accounts, companies]
+
+  payments:
+    description: "Money collected. Each payment links to an order or an invoice (at least one of order_id, invoice_id is set)."
+    synonyms: [transactions, charges]
+    columns:
+      amount_cents:
+        unit: cents
+        description: "Payment amount. Revenue counts only status succeeded."
+      method:
+        description: "How the customer paid."
+        values:
+          "card": "credit or debit card"
+          "bank_transfer": "bank transfer"
+          "paypal": "PayPal"
+      status:
+        description: "Payment outcome."
+        values:
+          "succeeded": "money collected; counts as revenue"
+          "failed": "attempt failed"
+          "refunded": "returned to customer"
+
+  plans:
+    description: "Price list of plan tiers (free, pro, enterprise) with monthly price and included seats."
+    synonyms: [pricing, price list]
+    columns:
+      monthly_price_cents:
+        unit: cents
+        description: "List price per month."
+      tier:
+        description: "Plan tier."
+        values:
+          "free": "no charge"
+          "pro": "mid tier"
+          "enterprise": "top tier; a big account"
+
+  products:
+    description: "Physical or add-on products sold in orders (not subscription plans)."
+    synonyms: [catalog, merchandise]
+    columns:
+      price_cents:
+        unit: cents
+        description: "Current list price."
+
+  refunds:
+    description: "Money returned to customers for a payment, with a reason."
+    synonyms: [chargebacks]
+    columns:
+      amount_cents:
+        unit: cents
+        description: "Refunded amount."
+      reason:
+        description: "Why it was refunded."
+        values:
+          "customer_request": "customer asked"
+          "duplicate": "charged twice"
+          "fraud": "fraudulent charge"
+          "service_issue": "service problem"
+
+  sales_reps:
+    description: "Sales team members who own opportunities, by region."
+    synonyms: [salespeople, account executives]
+    columns:
+      full_name:
+        pii: true
+      region:
+        description: "Sales region."
+        values:
+          "NA": "North America"
+          "EMEA": "Europe, Middle East, Africa"
+          "APAC": "Asia-Pacific"
+          "LATAM": "Latin America"
+
+  subscription_events:
+    description: "History of changes to a subscription (created, upgraded, canceled, ...) with MRR before and after."
+    synonyms: [subscription history, plan changes]
+    columns:
+      event_type:
+        description: "Kind of change."
+        values:
+          "created": "subscription started"
+          "upgraded": "moved to a higher tier"
+          "downgraded": "moved to a lower tier"
+          "canceled": "ended"
+          "reactivated": "came back after canceling"
+          "payment_failed": "a charge failed"
+      mrr_cents_after:
+        unit: cents
+      mrr_cents_before:
+        unit: cents
+
+  subscriptions:
+    description: "One row per organization plan subscription. Source of MRR, plan tier and churn (canceled_at)."
+    synonyms: [contracts, subscribers]
+    columns:
+      mrr_cents:
+        unit: cents
+        description: "Monthly recurring revenue of this subscription. Counts only for active and past_due."
+      plan_tier:
+        description: "Tier of the plan; enterprise means a big account."
+        values:
+          "free": "no charge"
+          "pro": "mid tier"
+          "enterprise": "top tier; a big account"
+      status:
+        description: "Subscription state."
+        values:
+          "trialing": "free trial, not paying, not MRR"
+          "active": "paying; the only status that is an active customer"
+          "past_due": "payment late; counts toward MRR, not an active customer"
+          "canceled": "ended; canceled_at is set (churn)"
+
+  support_agents:
+    description: "Our support staff who handle tickets, grouped into teams."
+    synonyms: [agents, support staff]
+    columns:
+      full_name:
+        pii: true
+      team:
+        description: "Support team."
+        values:
+          "tier1": "first line"
+          "tier2": "escalations"
+          "billing": "billing questions"
+
+  support_tickets:
+    description: "Customer support requests from an organization, raised by a user and handled by an agent."
+    synonyms: [tickets, cases, support requests]
+    columns:
+      category:
+        description: "Topic of the ticket."
+        values:
+          "billing": "money question"
+          "bug": "something is broken"
+          "how_to": "usage question"
+          "feature_request": "asks for a feature"
+      priority:
+        description: "Urgency."
+        values:
+          "low": "can wait"
+          "normal": "default"
+          "high": "soon"
+          "urgent": "immediately"
+      status:
+        description: "Ticket state. Open tickets means open and pending."
+        values:
+          "open": "unanswered or being worked"
+          "pending": "waiting on the customer"
+          "resolved": "answered, may reopen"
+          "closed": "finished"
+      subject:
+        pii: true
+
+  ticket_comments:
+    description: "Messages inside a support ticket, written by the user or an agent."
+    synonyms: [ticket messages, replies]
+    columns:
+      author_type:
+        description: "Who wrote it."
+        values:
+          "user": "customer user"
+          "agent": "support agent"
+      body:
+        pii: true
+
+  users:
+    description: "People who belong to a customer organization and log in to the product."
+    synonyms: [members, seats, end users]
+    columns:
+      email:
+        pii: true
+      full_name:
+        pii: true
+      role:
+        description: "Permission level in the organization."
+        values:
+          "admin": "manages the organization"
+          "member": "regular user"
+          "viewer": "read-only user"
+
+metrics:
+  mrr:
+    description: "Monthly recurring revenue in dollars: active and past_due subscriptions."
+    sql: "SELECT SUM(mrr_cents) / 100.0 AS mrr_dollars FROM subscriptions WHERE status IN ('active', 'past_due')"
+    owner: meherlktalluri
+    rationale: "Agreed 2026-11-05: trialing and canceled are not paying; past_due still counts."
+
+  active_customers:
+    description: "Number of organizations with an active subscription."
+    sql: "SELECT COUNT(DISTINCT org_id) AS active_customers FROM subscriptions WHERE status = 'active'"
+    owner: meherlktalluri
+    rationale: "A customer is an organization. past_due is not an active customer."
+
+  big_accounts:
+    description: "Number of organizations on an active enterprise subscription."
+    sql: "SELECT COUNT(DISTINCT org_id) AS big_accounts FROM subscriptions WHERE plan_tier = 'enterprise' AND status = 'active'"
+    owner: meherlktalluri
+    rationale: "Big account = enterprise plan. Assumed to need an active status: confirm this."
+
+  churned_customers:
+    description: "Organizations whose subscription was canceled within the last N days."
+    sql: "SELECT COUNT(DISTINCT org_id) AS churned_customers FROM subscriptions WHERE status = 'canceled' AND canceled_at > {today} - make_interval(days => {window_days}) AND canceled_at <= {today}"
+    owner: meherlktalluri
+    rationale: "Churned = canceled with canceled_at inside the window (default 30 days)."
+    parameters:
+      window_days:
+        default: 30
+        description: "Length of the look-back window in days."
+
+  revenue_total:
+    description: "All collected revenue in dollars, from orders and invoices."
+    sql: "SELECT SUM(amount_cents) / 100.0 AS revenue_dollars FROM payments WHERE status = 'succeeded'"
+    owner: meherlktalluri
+    rationale: "Revenue = succeeded payments, both order and invoice payments."
+
+  revenue_this_month:
+    description: "Revenue in dollars collected so far in the calendar month of today (UTC)."
+    sql: "SELECT SUM(amount_cents) / 100.0 AS revenue_dollars FROM payments WHERE status = 'succeeded' AND paid_at AT TIME ZONE 'UTC' >= date_trunc('month', {today} AT TIME ZONE 'UTC') AND paid_at <= {today}"
+    owner: meherlktalluri
+    rationale: "This month = calendar month of the pinned date in UTC."
+
+  active_users:
+    description: "Distinct users with a successful login in the last N days."
+    sql: "SELECT COUNT(DISTINCT user_id) AS active_users FROM login_events WHERE success AND occurred_at > {today} - make_interval(days => {window_days}) AND occurred_at <= {today}"
+    owner: meherlktalluri
+    rationale: "Active user = successful login in the last 7 days."
+    parameters:
+      window_days:
+        default: 7
+        description: "Length of the look-back window in days."
+
+  open_tickets:
+    description: "Support tickets that are open or pending."
+    sql: "SELECT COUNT(*) AS open_tickets FROM support_tickets WHERE status IN ('open', 'pending')"
+    owner: meherlktalluri
+    rationale: "Open tickets = status open or pending."
+
+terms:
+  customer:
+    maps_to: organizations
+  client:
+    maps_to: organizations
+  mrr:
+    maps_to: subscriptions
+    note: "Sum of mrr_cents over active and past_due."
+  churn:
+    maps_to: subscriptions
+    note: "status canceled with canceled_at in the window."
+  "big account":
+    maps_to: subscriptions
+    note: "plan_tier enterprise."
+  revenue:
+    maps_to: payments
+    note: "Succeeded payments only."
+  ticket:
+    maps_to: support_tickets
+  "active user":
+    maps_to: login_events
+    note: "Successful login in the last 7 days."
+  lead:
+    maps_to: leads

@@ -17,13 +17,19 @@ from t2sql.core.schema_models import ColumnInfo, SchemaInfo
 # Column names that usually hold personal data. A heuristic: a human confirms every flag.
 _PII_NAME = re.compile(
     r"(^|_)(email|phone|mobile|ssn|dob|birth\w*|address|street|zip|postal|ip|ip_address"
-    r"|first_name|last_name|full_name|password|token)($|_)"
+    r"|first_name|last_name|full_name|password|token|salary)($|_)"
 )
-_YAML_WORDS = {"on", "off", "yes", "no", "true", "false", "null", "y", "n", "~"}
+# Money columns: `amount_cents`, but also `mrr_cents_before` (the marker is not always the suffix).
+_MONEY_NAME = re.compile(r"_cents(_|$)")
+_YAML_WORDS ={"on", "off", "yes", "no", "true", "false", "null", "y", "n", "~"}
 
 
 def looks_like_pii(column_name: str) -> bool:
     return _PII_NAME.search(column_name) is not None
+
+
+def is_money_column(column_name: str) -> bool:
+    return _MONEY_NAME.search(column_name) is not None
 
 
 def _q(text: str) -> str:
@@ -38,7 +44,7 @@ def _key(text: str) -> str:
 def _column_block(col: ColumnInfo) -> list[str]:
     lines: list[str] = []
     pii = looks_like_pii(col.name)
-    money = col.name.endswith("_cents")
+    money = is_money_column(col.name)
     if not (col.enum_values or pii or money):
         return lines
     lines.append(f"      {_key(col.name)}:")
