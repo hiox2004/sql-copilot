@@ -15,7 +15,7 @@ Last updated: 2026-11-05.
 | pgAdmin (database browser) | Done, optional | [pgAdmin](#pgadmin-optional-database-browser) |
 | Snapshots and scratch database | Done | [Snapshots](#snapshots-and-the-scratch-database) |
 | Claude Code tutor agent + `teach` skill | Done | [Claude Code](#claude-code) |
-| `pyproject.toml`, pytest, ruff | Done (5 tests passing) | [Python](#python-environment) |
+| `pyproject.toml`, pytest, ruff, VS Code interpreter setting | Done (31 tests passing) | [Python](#python-environment) |
 | llama.cpp (local model serving) | Planned | [Planned](#planned-setups-not-done-yet) |
 | Colab/Kaggle (training) | Planned | [Planned](#planned-setups-not-done-yet) |
 
@@ -184,6 +184,7 @@ Study material: open `docs/study-guide.html` in a browser (single self-contained
 | `psql: ... C:/Program Files/Git/schema/...: No such file` | Git Bash rewrites `/schema/...` paths. Prefix the command with `MSYS_NO_PATHCONV=1` |
 | `.sh` script fails with `\r: command not found` | CRLF line endings. Run `sed -i 's/\r$//' <file>`; `.gitattributes` prevents it for new checkouts |
 | Port 5432 or 5050 already in use | Change `POSTGRES_PORT` in `.env`, or stop the other program |
+| VS Code shows "Unresolved import: yaml / pydantic" though tests pass | The editor is using a different Python. `.vscode/settings.json` points it at `.venv`; if it still shows, press Ctrl+Shift+P, "Python: Select Interpreter", choose `.venv`, then "Developer: Reload Window" |
 | Windows blocks `Activate.ps1` | `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` |
 
 ## Planned setups (not done yet)

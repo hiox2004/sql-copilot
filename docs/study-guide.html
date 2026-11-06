@@ -96,7 +96,7 @@ button.t{font:500 .8rem var(--body);border:1px solid var(--line);background:var(
   <div class="grp">Basics</div>
   <a href="#sql">SQL &amp; Postgres</a><a href="#llm">LLM basics</a><a href="#t2s">Text-to-SQL</a><a href="#docker">Docker</a><a href="#pyproj">Python project setup</a><a href="#schema">Schema design</a><a href="#dbtools">DB snapshots &amp; browsing</a><a href="#claude">Claude Code setup</a><a href="#hw">Your hardware</a>
   <div class="grp">Working</div>
-  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
+  <a href="#rag">Retrieval (RAG)</a><a href="#dict">Data dictionary</a><a href="#dict2">Dictionary: our ambiguities</a><a href="#dict3">Dictionary: models &amp; loader</a><a href="#ft">Fine-tuning</a><a href="#multidb">Many databases</a><a href="#graph">LangGraph loop</a><a href="#guard">Safety</a><a href="#eval">Evaluation</a><a href="#stack">API &amp; UI</a><a href="#base">Base model choice</a><a href="#serve">Model serving</a>
   <div class="grp">Advanced</div>
   <a href="#adv">Advanced topics</a><a href="#rl">SFT, GRPO, voting</a><a href="#fail">Failure modes</a>
   <div class="grp">Review</div>
@@ -543,6 +543,71 @@ enums:
   <div class="callout"><b>Governance.</b> A wrong definition produces confident wrong answers at scale. Each metric needs a named owner, a one-line rationale and a change log. Overrides ("revenue including refunds") must surface in the model's <code>assumptions</code> output.</div>
 </section>
 
+<section id="dict3">
+  <span class="lvl l-w">Working</span>
+  <h2>Dictionary step 2: models and loader</h2>
+  <p class="lead">The dictionary is a YAML file written by a person, so it will contain typos and copy-paste mistakes. This step builds the <b>front door</b>: it reads the file once, checks everything, and either hands back a trusted Python object or a clear error. After that, no other code needs to re-check it. The idea is called <b>parse, don't validate</b>.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 760 150" role="img" aria-label="YAML text through safe loader and Pydantic models to a Dictionary or an error">
+    <defs><marker id="e1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>
+    <rect x="6" y="40" width="120" height="60" rx="10" class="f-green"/><text x="66" y="66" text-anchor="middle" font-size="12" font-weight="700">saas.yaml</text><text x="66" y="84" text-anchor="middle" font-size="10" class="sub">written by a human</text>
+    <path d="M126 70H150" class="line" marker-end="url(#e1)"/>
+    <rect x="152" y="40" width="150" height="60" rx="10" class="f-amber"/><text x="227" y="62" text-anchor="middle" font-size="12" font-weight="700">YAML loader</text><text x="227" y="79" text-anchor="middle" font-size="10" class="sub">rejects duplicate keys</text><text x="227" y="92" text-anchor="middle" font-size="10" class="sub">text becomes dicts</text>
+    <path d="M302 70H326" class="line" marker-end="url(#e1)"/>
+    <rect x="328" y="40" width="150" height="60" rx="10" class="f-violet"/><text x="403" y="62" text-anchor="middle" font-size="12" font-weight="700">Pydantic models</text><text x="403" y="79" text-anchor="middle" font-size="10" class="sub">types, names, limits</text><text x="403" y="92" text-anchor="middle" font-size="10" class="sub">cross-references</text>
+    <path d="M478 55L520 30" class="line" marker-end="url(#e1)"/><path d="M478 85L520 112" class="line" marker-end="url(#e1)"/>
+    <rect x="522" y="8" width="230" height="44" rx="10" class="f-blue"/><text x="637" y="35" text-anchor="middle" font-size="12" font-weight="700">Dictionary object (frozen)</text>
+    <rect x="522" y="96" width="230" height="44" rx="10" class="f-rose"/><text x="637" y="123" text-anchor="middle" font-size="12" font-weight="700">DictionaryError (readable)</text>
+  </svg></div>
+  <h3>What "valid" means (no database involved yet)</h3>
+  <div class="tablebox"><table>
+    <thead><tr><th>Rule</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Unknown fields are rejected</td><td>A typo like <code>synonymns:</code> would otherwise be ignored silently, giving worse retrieval with no warning</td></tr>
+      <tr><td>Names are snake_case; descriptions at most 200 characters</td><td>Every character costs prompt tokens on a small model</td></tr>
+      <tr><td>Metrics need <code>sql</code>, <code>owner</code> and <code>rationale</code></td><td>A definition nobody owns or can justify should not ship</td></tr>
+      <tr><td>Metric SQL: one SELECT/WITH, no <code>;</code>, only <code>{today}</code> and declared <code>{parameters}</code></td><td>Keeps metrics runnable and testable, and the placeholder set closed</td></tr>
+      <tr><td>A term must point at a declared table; synonyms belong to one table</td><td>Ambiguous or dangling references mislead retrieval</td></tr>
+      <tr><td>PII columns cannot list values</td><td>Value lists get copied into prompts</td></tr>
+      <tr><td>Models are frozen</td><td>A loaded dictionary cannot be changed by accident</td></tr>
+    </tbody></table></div>
+  <h3>Two YAML traps, tested on purpose</h3>
+  <div class="grid">
+    <div class="card"><span class="chip c-rose">Duplicate keys</span><p>PyYAML keeps the <b>last</b> duplicate and silently drops the earlier one, so a copy-paste slip could erase a metric. Our loader raises: <code>duplicate key 'metrics' on line 62 (first used on line 39)</code>.</p></div>
+    <div class="card"><span class="chip c-rose">The "Norway problem"</span><p>YAML 1.1 reads unquoted <code>no</code>, <code>on</code>, <code>off</code>, <code>yes</code> as booleans (a country code <code>NO</code> for Norway becomes false). Our own <code>org_settings</code> values are <code>on</code>/<code>off</code>. Strict string fields reject the boolean, and the error says to put the word in quotes.</p></div>
+  </div>
+  <div class="callout tip"><b>Messages are part of the feature.</b> The first version of the Norway error just said "Input should be a valid string", which makes the user guess. We saw it, judged it unhelpful, and added a targeted hint. Always read your own error messages as if you were the person who has to fix the file.</div>
+  <h3>How the tests are written</h3>
+  <ul class="steps">
+    <li>Start from <b>one valid fixture</b> (<code>tests/unit/fixtures/dictionary_valid.yaml</code>).</li>
+    <li>Change <b>exactly one thing</b> per test, and assert the error names the exact field path.</li>
+    <li>A <code>mutate()</code> helper asserts the text to change really exists, so a test cannot pass by accidentally testing nothing.</li>
+    <li>31 tests now pass in total; ruff is clean.</li>
+  </ul>
+  <div class="callout warn"><b>A test of ours was wrong, and the code was right.</b> I expected a structural typo and a bad cross-reference to be reported together. Only the typo appeared: Pydantic runs "after" validators (our cross-reference rules) only when the fields themselves are valid. We kept the behaviour, rewrote the test to say so, and added a second test documenting it. When a test fails, decide whether the code or the expectation is wrong before touching either.</div>
+  <h3>Reading <code>dictionary_models.py</code>: block by block</h3>
+  <div class="tablebox"><table>
+    <thead><tr><th>Block</th><th>What it is</th></tr></thead>
+    <tbody>
+      <tr><td>Imports and constants</td><td>Tools borrowed from Pydantic and Python, plus the tunable limits (200-character descriptions, 800-character SQL)</td></tr>
+      <tr><td>Type aliases (<code>Identifier</code>, <code>Description</code>, ...)</td><td>A base type plus attached rules, defined once and reused. <code>Identifier</code> = a string matching <code>^[a-z][a-z0-9_]*$</code>, strict, at most 64 characters</td></tr>
+      <tr><td><code>_Base</code></td><td>The parent every model inherits: <code>extra="forbid"</code> (unknown fields are errors) and <code>frozen=True</code> (read-only after loading)</td></tr>
+      <tr><td><code>Meta</code>, <code>GlobalRule</code></td><td>Small record shapes: which database and dialect; rules included in every prompt</td></tr>
+      <tr><td><code>Column</code>, <code>Table</code></td><td>Nested records. A <code>Table</code> holds a dict of <code>Column</code>s. Validators add rules the types cannot express (PII columns list no values; synonyms are unique)</td></tr>
+      <tr><td><code>MetricParameter</code>, <code>Metric</code></td><td>A named measure with one runnable query, an owner and a rationale. Its validator checks the SQL shape and the placeholders</td></tr>
+      <tr><td><code>_placeholders()</code></td><td>Helper that finds <code>{names}</code> in SQL using Python's own formatter parser, and refuses anything fancy</td></tr>
+      <tr><td><code>Term</code></td><td>A business word pointing at a table</td></tr>
+      <tr><td><code>Dictionary</code></td><td>The root. Its validator checks rules that span the whole file (terms point at real tables; synonyms are not claimed twice). <code>blocked_columns()</code> returns the PII list for the safety guard</td></tr>
+    </tbody></table></div>
+  <pre><code>Dictionary
+ ├─ meta: Meta
+ ├─ global_rules: [GlobalRule, ...]
+ ├─ tables:  { table_name: Table { description, synonyms, columns: { col_name: Column } } }
+ ├─ metrics: { metric_name: Metric { description, sql, owner, rationale, parameters } }
+ └─ terms:   { "client": Term { maps_to: table_name } }</code></pre>
+  <p class="count" style="font-size:.8rem;color:var(--muted)">Not covered yet: checking names against the real database (tables, columns, enum values, running each metric). That is step 5.</p>
+</section>
+
 <section id="ft">
   <span class="lvl l-w">Working</span>
   <h2>Fine-tuning a small model with QLoRA</h2>
@@ -907,6 +972,9 @@ httpx.post("http://localhost:8080/v1/chat/completions", json={
     <details><summary>23. If the model is fine-tuned on one schema, what is the main risk when we add a second database?</summary><p>It may have learned our specific tables instead of the general skill of reading the schema and dictionary in the prompt. The fix is schema-agnostic training data (several schemas, shuffled and renamed) and a held-out schema to measure transfer.</p></details>
     <details><summary>24. Why install the project with <code>pip install -e</code> instead of a normal install?</summary><p>An editable install links the venv to your source folder, so edits take effect immediately and imports always see the current code, while still testing that the package is properly installable.</p></details>
     <details><summary>25. Why do integration tests skip instead of fail when Docker is off?</summary><p>They are marked <code>integration</code> and the fixture skips when the database is unreachable, so the fast test run never breaks because of the environment, while a real failure with the DB up still shows.</p></details>
+    <details><summary>26. What does "parse, don't validate" mean for the dictionary?</summary><p>Check the file once at load time and return a trusted, frozen object. Every other part of the system then uses it without re-checking, and a bad file fails immediately with a clear message instead of misbehaving later.</p></details>
+    <details><summary>27. Why does the loader reject unknown fields and duplicate keys instead of tolerating them?</summary><p>Both mistakes are silent by default: a typo'd field is ignored and a duplicate key quietly overwrites the earlier one. Either would degrade answers with no error, so we make them loud.</p></details>
+    <details><summary>28. What is the "Norway problem" and how do we defend against it?</summary><p>YAML 1.1 turns unquoted no/on/off/yes into booleans. Strict string fields reject the boolean, and the error tells the author to quote the value.</p></details>
     <details><summary>20. Why do the golden answers need a pinned "today"?</summary><p>Questions like "churned this month" depend on the current date. If the data hangs off <code>NOW()</code>, the right answer changes every day and the eval expires. Pinning the date (2026-11-05, also injected into the prompt) keeps answers stable.</p></details>
     <details><summary>21. All 35 data checks passed on the first run. Why did we still corrupt the data on purpose?</summary><p>A check that can never fail proves nothing. Injecting known violations in a rolled-back transaction showed each check actually detects its rule.</p></details>
     <details><summary>22. What is a distractor table, and why add them?</summary><p>A plausibly named table that is wrong for a question (plans vs subscriptions, employees vs users). With only 8 tables retrieval is trivial; distractors make table-pruning quality measurable.</p></details>
@@ -937,6 +1005,11 @@ httpx.post("http://localhost:8080/v1/chat/completions", json={
     <div><b>Q4_K_M</b> <span>Common GGUF 4-bit quantization level (balance of size and quality).</span></div>
     <div><b>GBNF</b> <span>llama.cpp's grammar format (GGML's flavor of BNF, Backus-Naur Form, a notation for writing grammar rules). It forces output to match a pattern such as our JSON.</span></div>
     <div><b>Continuous batching</b> <span>Serving many requests in one GPU pass; vLLM's main speed trick.</span></div>
+    <div><b>Pydantic</b> <span>Python library where classes with type hints validate their own data and explain errors.</span></div>
+    <div><b>Frozen model</b> <span>A model whose fields cannot be changed after creation.</span></div>
+    <div><b>Strict mode</b> <span>Validation that refuses silent type conversions (e.g. a boolean where a string is expected).</span></div>
+    <div><b>Parse, don't validate</b> <span>Turn untrusted input into a trusted typed object once, at the boundary.</span></div>
+    <div><b>Norway problem</b> <span>YAML 1.1 reading unquoted NO/on/off/yes as booleans.</span></div>
     <div><b>Editable install</b> <span><code>pip install -e</code>: links the environment to your source folder so edits are live.</span></div>
     <div><b>pyproject.toml</b> <span>Single file declaring a Python project's metadata, dependencies and tool settings.</span></div>
     <div><b>pytest marker</b> <span>Label on a test (e.g. integration) used to select or skip groups of tests.</span></div>
